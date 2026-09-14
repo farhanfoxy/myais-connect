@@ -1,0 +1,20 @@
+{
+  "extends": [
+    "expo/tsconfig.base",
+    "@myais/config/tsconfig/base.json"
+  ],
+  "compilerOptions": {
+    "jsx": "react-native",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

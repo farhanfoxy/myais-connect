@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "MyAIS Connect",
+    "slug": "myais-connect",
+    "version": "0.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "orientation": "portrait"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@myais/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@myais/config": "workspace:*",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint-config-next": "16.3.5"
+  }
+}
