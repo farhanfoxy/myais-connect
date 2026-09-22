@@ -8,7 +8,8 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "db:validate": "prisma validate",
-    "db:format": "prisma format"
+    "db:format": "prisma format",
+    "migration:dry-run": "node src/migration/base44/run.ts"
   },
   "devDependencies": {
     "@myais/config": "workspace:*",
