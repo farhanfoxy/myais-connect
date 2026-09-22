@@ -24,7 +24,7 @@ interface FileReport {
   enumChecks: number;
   enumErrors: number;
 }
-interface Mapping {
+export interface Mapping {
   users: { id: string; email: string; status: string }[];
   deleted: string[];
 }
@@ -73,7 +73,12 @@ async function csvPaths(directory: string): Promise<string[]> {
   return result.sort();
 }
 
-export async function auditDirectory(directory: string) {
+export interface InputSnapshot {
+  tables: Map<string, CsvTable>;
+  mapping: Mapping;
+}
+
+export async function auditDirectory(directory: string, capture?: (snapshot: InputSnapshot) => void) {
   const issues: Issue[] = [];
   const issue = (severity: Issue["severity"], code: string, entity?: string, field?: string,
     row?: number, label?: string): void => { issues.push({ severity, code, entity, field, row, label }); };
@@ -114,7 +119,7 @@ export async function auditDirectory(directory: string) {
     report.absentOptionalColumns = Object.entries(rules).filter(([field, rule]) =>
       !rule.required && !table.headers.includes(field)).length;
     const platform = known === "User" ? ["email", "full_name", "fullName", "status", "id", "created_date", "updated_date"] :
-      ["id", "created_date", "updated_date", "created_by_id", "created_by", "is_sample"];
+      ["id", "created_date", "updated_date", "created_by_id", "created_by", "is_sample", ...(known === "Event" ? ["timezone"] : [])];
     report.unknownColumns = table.headers.filter(field => !(field in rules) && !platform.includes(field)).length;
     if (report.unknownColumns) issue("ERROR", "UNMAPPED_COLUMNS", known);
     for (const [index, record] of table.rows.entries()) {
@@ -262,11 +267,13 @@ export async function auditDirectory(directory: string) {
   const blockersBeforeWrite = [
     ...(errors ? ["Resolve dry-run validation errors."] : []),
     ...(deleted.size ? ["Create disabled non-login identities for mapping-listed deleted humans; no invented personal data."] : []),
-    ...(timestamps.some(t => t.offsetless) ? ["Establish source timezone before converting offset-less timestamps."] : []),
+    ...(timestamps.some(t => t.offsetless) ? ["Write mode must interpret offset-less system timestamps as approved UTC; dry-run leaves them unchanged."] : []),
     ...(polymorphic.mismatchedType || polymorphic.unresolved ? ["Implement approved raw polymorphic provenance preservation; do not repair target inconsistencies."] : []),
     ...(platformCreators.serviceMarked || platformCreators.unresolved ? ["Retain and review unresolved platform principal provenance without fake users."] : []),
-    "Write mode is not implemented or authorized by this tool.",
+    "Dry-run does not authorize writes; --write and write-mode preflight are required.",
   ];
+  // Pass the exact audited bytes as parsed records to write preflight, never to output.
+  capture?.({ tables, mapping });
   // Return only allowlisted metadata/counts. Never return rows, mappings, values or caught errors.
   return {
     mode: "DRY_RUN", result: errors ? "FAIL" : "PASS",

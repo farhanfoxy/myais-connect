@@ -1,18 +1,35 @@
-# Base44 dry-run audit
+# Base44 controlled importer
 
-From packages/database: `pnpm migration:dry-run`.
-From the repository root: `pnpm --filter @myais/database migration:dry-run --input ../migration-private`.
+From the repository root:
 
-The default is `../../../migration-private` relative to **packages/database**: the sibling private directory, independent of the working directory. An explicit --input path is relative to the caller's working directory. No environment variables, dotenv, Prisma client or database configuration are loaded.
+```sh
+pnpm --filter @myais/database migration:dry-run --input ../migration-private
+pnpm --filter @myais/database migration:import --input ../migration-private
+```
 
-The CLI recursively reads all CSVs and the root Base44_User_ID_Mapping.txt. Known filenames are matched exactly; unknown filenames are replaced with safe labels and reported as unmapped. Four documented zero-byte exports are valid; missing files are not. The dependency-free strict CSV reader handles quoted commas/newlines, doubled quotes, BOMs and CRLF. UTF-8 decoding is strict. Malformed records, duplicate headers, missing required columns/values, invalid enums/types, duplicate IDs/approved keys and unresolved direct FKs fail validation.
+Both commands default to the existing read-only audit. Only an explicit `--write` enables database access:
 
-PASS means the audit completed without those errors. It does **not** mean write-ready. Known deleted humans, the Event system sentinel, service-marked metadata, polymorphic discrepancies and offset-less timestamps remain explicit warnings/follow-ups. An unrecognized service-marked metadata string is not verified as a platform identity and is never used as a User FK. No placeholders are constructed. Role conversion retains legacyRole only in memory.
+```sh
+pnpm --filter @myais/database migration:import --input ../migration-private --write
+```
 
-Timestamp reporting classifies original strings by syntax only; it does not parse Date objects, establish calendar validity/timezones, convert timestamps or initialize lifecycle fields. Empty optional values are not defaulted. Exact string comparisons implement the approved uniqueness contract; no email case-folding or value normalization is introduced.
+The default input is `../../../migration-private` relative to **packages/database**, independent of the caller's working directory. An explicit input path is relative to the caller. Requires the project's Node version with TypeScript stripping and installed workspace dependencies. Write mode requires `DIRECT_URL` supplied through the process environment and an already provisioned database matching the approved Prisma schema. This tool does not load dotenv, create tables, run migrations or generate a Prisma client. It reuses the PostgreSQL driver pinned by the installed Prisma CLI; no packages were added.
 
-Output includes trusted entity/field names, record ordinals and sequential deleted-user labels only. Parser/filesystem exception details, arbitrary headers, unknown enum strings, original row values and private paths are never serialized. No file URLs are accessed. No PostgreSQL connection, writes, UUID generation, imports or source-file changes occur.
+The strict CSV reader supports quoted commas/newlines, doubled quotes, BOMs and CRLF. It reads all CSVs and Base44_User_ID_Mapping.txt; four documented zero-byte entity files are valid. Unknown files, malformed input, missing required fields, invalid enums/types, duplicate legacy IDs/approved keys and unresolved direct foreign keys fail the audit. Reports use trusted entity/field names, row ordinals and sequential deleted-user labels only. No file URLs are accessed.
 
-The proposed order follows all 34 direct references. Before a future write phase, the User stage must also preserve mapping-listed deleted humans as disabled non-login identities. Polymorphic references and raw platform attribution are not FK dependencies.
+Dry-run PASS means the source audit has no ERROR. Write mode repeats that audit, retains its exact parsed snapshot, then validates canonical transformations before opening a connection. It maps roles, preserves nullable values and snapshots, validates exact Decimal(12,2) amounts without rounding, interprets offset-less **system** timestamps explicitly as UTC, and retains date-only calendars and Event local clock strings. Event timezone defaults to Asia/Kuala_Lumpur. Offset-less action timestamps remain invalid. Timestamp precision matches the schema's milliseconds. Event lifecycle and Base44 platform timestamps stay separate. Unmapped platform fields on future exports of the four empty entities block import.
 
-Source field metadata in contract.ts is a reviewed snapshot of the mapping's 221 declared Base44 properties, including its 26 enums; canonical unique keys and direct references follow the approved Prisma schema. Synthetic tests cover quoting, malformed CSV, identity/role mapping, validation failures and output redaction. Run `node --test src/migration/base44/audit.test.ts` from packages/database.
+Exactly two mapping-listed deleted users receive new UUIDs and DISABLED status. Their identity/role/platform-status fields remain NULL, with no credentials or invented personal data. Polymorphic IDs and platform provenance remain raw legacy values; known discriminator mismatches are not repaired. The Event system creator has a NULL User FK and preserved legacyCreatedBy.
+
+The approved order covers all 34 direct relationships. One serializable transaction covers the entire import, with an advisory lock, parameterized statements and timeouts. Existing legacy IDs are looked up first and their UUIDs reused before comparing foreign keys. Identical rows are skipped. Conflicting scalar/FK values abort without updates; uniqueness conflicts with other database records also abort. Lifecycle timestamps generated for records lacking source timestamps are retained on retry. No updates, deletes or upserts occur.
+
+The safe final report includes attempted, inserted, existing, skipped and failed counts per entity, unresolved references and transaction outcome. Inserted counts describe confirmed committed records; rollback clears staged insert counts. A lost commit acknowledgement reports COMMIT_UNCONFIRMED and unconfirmedInsertRecords: a controlled retry checks existing legacy IDs rather than assuming rollback. Driver exception details are suppressed.
+
+Run synthetic tests and package typecheck from packages/database:
+
+```sh
+node --test src/migration/base44/audit.test.ts src/migration/base44/write.test.ts
+pnpm typecheck
+```
+
+Tests use an in-memory transactional database double, never PostgreSQL. Live database compatibility and write execution require separate operator validation. Metadata snapshots in contract.ts and write-contract.ts must follow approved schema changes; write-contract.ts covers all 18 models and their scalar columns.
