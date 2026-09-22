@@ -1,6 +1,25 @@
 # Database mapping draft — Base44 source and export analysis
 
-Status: **analysis only; not an approved canonical schema**. No Prisma models, migrations, application changes, data imports, or archive edits were made.
+Status: **canonical mapping decisions approved for Prisma implementation**. No canonical Prisma schema or migration has yet been created. Remaining HIGH/MEDIUM findings belong to later auth, workflow, import and security phases and do not block the canonical schema. This update changes documentation only.
+
+## Final primary-key and lifecycle-timestamp clarification — 2026-09-22
+
+These approved rules apply to **all 18 canonical models** and supersede earlier provisional key/timestamp wording. They do not change business rules.
+
+| Canonical field | Approved Prisma definition | Meaning |
+| --- | --- | --- |
+| id | `id String @id @default(uuid()) @db.Uuid` | New-system UUID primary key; never reuse a Base44 ID. |
+| legacyBase44Id | `legacyBase44Id String? @unique` | Separate per-entity legacy identity; populated on imported records, NULL allowed on new native records. |
+| createdAt | `createdAt DateTime @default(now()) @db.Timestamptz(3)` | Required canonical record creation timestamp. |
+| updatedAt | `updatedAt DateTime @updatedAt @db.Timestamptz(3)` | Required canonical record update timestamp managed by Prisma. |
+| legacyCreatedAt | `legacyCreatedAt DateTime? @db.Timestamptz(3)` | Imported Base44 platform created_date, preserved separately. |
+| legacyUpdatedAt | `legacyUpdatedAt DateTime? @db.Timestamptz(3)` | Imported Base44 platform updated_date, preserved separately; never @updatedAt. |
+
+During migration, canonical createdAt/updatedAt may be initialized from legacy timestamps only after the approved source-timezone interpretation is established. Defaults for new-system lifecycle fields do not authorize replacing unknown imported timestamps with invented historical values.
+
+**Event exception to source mapping, not to field definitions:** Base44 Event.createdAt and Event.updatedAt map directly to the canonical createdAt and updatedAt above. Base44 Event.created_date and Event.updated_date map separately to legacyCreatedAt and legacyUpdatedAt. Event has exactly these four timestamp fields for these two source pairs; no duplicate Event creation/update timestamp fields are added. Other event/action timestamps such as publishedAt remain separately mapped as already documented.
+
+The target storage, key generator and lifecycle definitions are settled. Source-timezone interpretation is a later import execution dependency, not a canonical schema blocker. Prisma implementation is approved; this turn creates no Prisma schema or migration.
 
 ## Source and scope
 
@@ -26,7 +45,7 @@ The user approved the following decisions after the export audit. They supersede
 
 ### R12 — Event creator: RESOLVED
 
-- Canonical `Event.createdByUserId` is a nullable User foreign key (`String? @db.Uuid` with the draft new-ID strategy). Populate it only when Base44 `createdBy` resolves to a real User through the legacy-ID lookup.
+- Canonical `Event.createdByUserId` is a nullable User foreign key (`String? @db.Uuid` with the approved UUID primary-key strategy). Populate it only when Base44 `createdBy` resolves to a real User through the legacy-ID lookup.
 - For a system/service/platform principal, set `createdByUserId = NULL` and preserve the exact original identifier/value in nullable `Event.legacyCreatedBy` (`String?`). The exported `system` sentinel therefore becomes NULL FK plus `legacyCreatedBy = "system"`.
 - Do not substitute platform `created_by_id` for the business creator. Preserve platform creator metadata separately. Do not create authenticatable fake users for service/platform principals.
 - The two confirmed deleted human identities still require disabled, non-login legacy identities under AGENTS.md. They are distinct from platform principals. Unknown purported human references still require investigation; they are not automatically classified as services.
@@ -42,24 +61,104 @@ The user approved the following decisions after the export audit. They supersede
 - Canonical imported system timestamps use `legacyCreatedAt` / `legacyUpdatedAt`, separate from Event `createdAt` / `updatedAt`; retain exact raw source strings in restricted provenance. Do not attach `@updatedAt` to imported legacy timestamps.
 - **Migration execution follow-up (R25 HIGH):** UTC target storage does not prove the original timezone of the 156 offset-less system timestamp cells. Before importing them, document the source-zone interpretation from evidence or an explicit migration decision, then normalize to UTC. Do not silently append Z or apply Event.timezone to unrelated platform timestamps. This does not block choosing timestamptz or beginning canonical design.
 
+## Final schema decisions approved by the user — 2026-09-15
+
+These decisions supersede earlier provisional target constraints and nullability in this draft. Source required flags, source delete behavior and export observations remain historical evidence. **Prisma schema implementation is now approved for the mapped scope; this update creates no Prisma schema, migration or application code.**
+
+### Money — R19 schema decision resolved
+
+All eight monetary fields use Prisma `Decimal` with `@db.Decimal(12, 2)` (PostgreSQL numeric/decimal precision 12, scale 2):
+
+- `MembershipType.entranceFee`
+- `MembershipType.membershipFee`
+- `Payment.entranceFee`
+- `Payment.membershipFee`
+- `Payment.totalAmount`
+- `RenewalApplication.fee`
+- `Event.memberFee`
+- `Event.nonMemberFee`
+
+This fixes storage precision/scale; it does not add a nonnegative check constraint or change stored fee snapshots. All observed exported amounts fit exactly. Source-optional fields stay nullable and Payment.totalAmount remains required. No rounding behavior for future out-of-scale inputs is approved here. Other schema-number fields retain their mapped Float representation; future numeric validation policies remain R19 MEDIUM, not a schema implementation blocker.
+
+### Referential actions — R15 resolved
+
+All business/ownership relationships use `onDelete: Restrict`. Exactly the following historical actor relationships instead use **nullable FK + `onDelete: SetNull`**:
+
+- `Announcement.createdByUserId`
+- `ApplicationDocument.verifiedByUserId`
+- `ApplicationReview.reviewerUserId`
+- `AuditLog.actorUserId`
+- `Event.createdByUserId`
+- `InformationRequest.requestedByUserId`
+- `MembershipApplication.reviewedByUserId`
+- `MembershipApplication.approvedByUserId`
+- `Payment.verifiedByUserId`
+- `SystemSetting.updatedByUserId`
+
+This explicitly overrides source requiredness for ApplicationReview.reviewerUserId, AuditLog.actorUserId and InformationRequest.requestedByUserId: their canonical FK fields and relation properties are nullable. The source-required column in the field tables is unchanged as evidence.
+
+No business/history record is cascade-deleted. SetNull removes only the actor link when its referenced User is deleted; existing name snapshots and legacy provenance are retained. The approved disabled, non-login identities for the two deleted humans still apply during migration; nullable actor FKs are not permission to omit those identities or erase imported references.
+
+Event uses the previously approved createdByUserId/legacyCreatedBy split. Its User FK uses SetNull; system/service/platform principals retain their original legacyCreatedBy and have no User FK. All remaining 24 direct relationships use Restrict.
+
+### Approved uniqueness — R15 resolved
+
+- `User.email`
+- `MemberProfile.userId`
+- `MembershipType.code`
+- `EligibilityQuestion.code`
+- `SystemSetting.settingKey`
+- `MembershipApplication.applicationNumber`
+- `Membership.membershipNumber`
+- `Payment.paymentReference`
+- `Event.eventNumber`
+- `Membership.applicationId`
+- `Payment.applicationId`
+- `legacyBase44Id` within each of the 18 migrated entities.
+
+Apply these as ordinary single-column unique constraints. Optional mapped fields remain nullable; uniqueness does not imply NOT NULL. User.email stays nullable for incomplete/disabled identities. The approval does not introduce case-folding, a case-insensitive database type/index, or email rewriting.
+
+Membership.applicationId and Payment.applicationId are optional unique FKs: each application can have at most one linked membership and at most one linked payment. User-to-application/membership/payment multiplicity remains unchanged.
+
+Do **not** add unique constraints for:
+
+- `MembershipApplication.userId`
+- `Membership.userId`
+- `Payment.userId`
+- `Payment.transactionReference`
+- `Event.slug`
+- `ApplicationDocument(applicationId, documentType)`
+- `EligibilityAnswer(applicationId, questionId)`
+- `EventRegistration(eventId, userId)`
+- `InformationRequest.applicationId`
+- `MemberProfile.aisMembershipNumber`
+- `RenewalApplication.renewalNumber`
+
+No additional business-key or composite uniqueness is approved. In particular, repeated reviews, event registrations per user and renewal/payment associations do not acquire extra uniqueness from this approval.
+
+### Polymorphic references
+
+AuditLog.entityType/entityId and Notification.relatedEntityType/relatedEntityId remain **non-FK polymorphic references**. The field tables' provenance renames to legacyEntityId and legacyRelatedEntityId remain applicable; original discriminator and legacy target string are retained. Neither relationship receives an enforced entity-specific FK or a uniqueness constraint. R10's historical discriminator mismatch remains a data-repair finding, not a schema blocker.
+
+
 ## Reading the field tables
 
 Each entity has a table containing every declared field plus explicitly marked implicit/system or code-only fields. Source types, required flags, defaults, and enum values come directly from its JSONC. A default does **not** make an optional property required. `—` means no declaration, not an empty string, zero, or a runtime default.
 
-The PostgreSQL/Prisma columns remain proposals except for the explicitly approved decisions above:
+The PostgreSQL/Prisma mappings are approved for implementation under the cumulative decisions above. Base44 declarations and audit observations remain source evidence:
 
 - Existing camelCase names stay unchanged unless a row says otherwise. No destructive drop is proposed. Schema-only or currently unused fields remain `MIGRATE`, not discarded.
 - `MIGRATE`: retain the field's value/meaning. `TRANSFORM`: explicit representation conversion or legacy-ID lookup. `RENAME`: retain content under a clearer target name. `LEGACY_ONLY`: retain source metadata for provenance without treating it as an operational relationship. `DROP_WITH_REASON`: available action, **used for no fields**.
-- Each imported entity needs a **new** primary key `id`; `String @db.Uuid` is the draft choice, with the UUID generation/version decision deferred. Original `id` is copied exactly into `legacyBase44Id` and is never reused as the new primary key. A per-entity unique legacy-ID lookup is proposed for import identity; 78 exported entity IDs and three mapped User IDs are nonempty and globally distinct in this supplied dataset; this does not establish uniqueness rules for other fields. New native records need not have a legacy ID.
-- Direct reference fields propose `String @db.Uuid` holding the referenced new ID, obtained by lookup of its entity's `legacyBase44Id`. The schemas declare plain strings, **not foreign keys**. No cascade deletes or uniqueness constraints are inferred. Unresolved required references block that record's import; do not drop the record or silently make the field optional.
-- The “Nullable?” column applies to the target import representation. Required schema fields propose “No”; optional schema fields propose “Yes”. Neither omission nor a default proves that explicit JSON null is accepted by Base44. Existing code does send null for some optional fields. Use the per-column export profile below before final NOT NULL/default decisions; blank optional values become NULL under the approved rule; original representations may remain in restricted provenance.
+- Every canonical model uses `id String @id @default(uuid()) @db.Uuid` and separate `legacyBase44Id String? @unique`. Imported records populate legacyBase44Id; new native records may leave it NULL. The exported legacy IDs are distinct, but remain separate from new primary keys.
+- Direct reference fields propose `String @db.Uuid` holding the referenced new ID, obtained by lookup of its entity's `legacyBase44Id`. The schemas declare plain strings, **not foreign keys**. The approved Restrict/nullable-SetNull policy and explicit unique allowlist apply; no cascade delete or additional uniqueness is inferred. Unresolved required references block that record's import; do not drop the record or silently make the field optional.
+- The “Nullable?” column applies to the target import representation. Required schema fields propose “No”; optional schema fields propose “Yes”, except the ten approved historical actor FKs are always nullable, including the three source-required actors. Neither omission nor a default proves that explicit JSON null is accepted by Base44. Existing code does send null for some optional fields. Use the per-column export profile below before final NOT NULL/default decisions; blank optional values become NULL under the approved rule; original representations may remain in restricted provenance.
 - `String` maps to PostgreSQL text; no source length limit is invented. Enum type names below are proposed. Source enum values remain recorded exactly; canonical roles follow the approved role mapping above. Non-enum strings such as membership type snapshots, payment methods, and review status snapshots are **not** silently tightened into enums.
-- Schema `number` maps provisionally to `Float` (PostgreSQL double precision), preserving the source's unconstrained numeric semantics. Fields that look integral are not declared integer. Narrowing to Int/BigInt requires value/range profiling. Monetary fields propose `Decimal` (PostgreSQL numeric); precision and scale are **unresolved**. Do not silently round to two decimal places or rely on Prisma's implicit decimal precision.
+- Schema `number` maps provisionally to `Float` (PostgreSQL double precision), preserving the source's unconstrained numeric semantics. Fields that look integral are not declared integer. Narrowing to Int/BigInt requires value/range profiling. All eight monetary fields use approved `Decimal @db.Decimal(12, 2)`. No implicit decimal precision or unapproved rounding is used.
 - Approved date-only mapping is `DateTime @db.Date`; system/event/action instants use `DateTime @db.Timestamptz(3)` normalized to UTC. Millisecond precision covers all observed values. Optional blanks become NULL; invalid nonblank dates must be reported, never replaced with “now”. Source-zone interpretation for offset-less imports is tracked under R25 HIGH.
 - **Export qualification:** User system timestamps have explicit Z; non-User system timestamps have no offset. Canonical UTC timestamptz is approved; raw input remains restricted provenance and source-zone interpretation is an import follow-up (R25 HIGH). Six-digit fractional syntax is observed, but every supplied timestamp is millisecond-aligned. Optional fields on the four empty entities remain unprofiled.
-- System timestamps use `legacyCreatedAt` / `legacyUpdatedAt` as UTC timestamptz; exact raw input remains restricted provenance on every entity to preserve source provenance without colliding with Event's explicit `createdAt` / `updatedAt`. Do not attach `@updatedAt` to imported legacy timestamps or synthesize missing source timestamps.
+- All 18 models also have required canonical createdAt @default(now()) and updatedAt @updatedAt, both Timestamptz(3). Imported platform timestamps use nullable `legacyCreatedAt` / `legacyUpdatedAt` as UTC timestamptz; exact raw input remains restricted provenance on every entity to preserve source provenance without colliding with Event's explicit `createdAt` / `updatedAt`. Do not attach `@updatedAt` to imported legacy timestamps or synthesize missing source timestamps.
 - File URLs remain preserved strings in restricted data. This does not authorize public retrieval or automatic network downloads. Converting them to private storage objects is a later, separately specified task.
-- Every `source-only` enum/constraint/reference ambiguity is listed below; blocked choices must be resolved before implementing the canonical schema.
+- Remaining source-only uncertainties are tracked for later auth/workflow/import/security phases. They do not block implementing the approved canonical schema; no unapproved business repair or extra constraint is implied.
 
 ## Base44 system and undeclared User fields
 
@@ -94,10 +193,13 @@ The custom schema contains five properties and no RLS block. Its required array 
 | `photoUrl` | string | Optional | — | — | — | `photoUrl` | String | Yes | MIGRATE | Profile photo lives on User, not MemberProfile; separate from application PROFILE_PHOTO uploads. |
 | `accountStatus` | string | Optional | `"ACTIVE"` | `ACTIVE`, `DISABLED`, `SUSPENDED` | — | `accountStatus` | UserAccountStatus | Yes | MIGRATE | No custom runtime enforcement or writer found; platform auth behavior unknown. |
 | `lastLoginAt` | string (date-time) | Optional | — | — | — | `lastLoginAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No custom writer found; do not infer last login from created_date/updated_date. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
-| `email` | Undeclared; string used by auth/UI | Unknown at entity level; registration UI requires it | Unknown | — | Auth identifier; not a FK | `email` | String | Yes, provisional for incomplete/disabled identities | MIGRATE | Verify platform required/unique/case semantics and duplicate addresses before constraining. |
+| `email` | Undeclared; string used by auth/UI | Unknown at entity level; registration UI requires it | Unknown | — | Auth identifier; not a FK | `email` | String | Yes, provisional for incomplete/disabled identities | MIGRATE | Canonical nullable email uniqueness is approved; no email case-folding or extra platform requiredness is inferred. Canonical single-column unique approved; retain mapped nullability. |
 | `full_name` | Undeclared; string consumed by UI | Unknown | Unknown | — | Competing name source with fullName and MemberProfile.fullName | `legacyFullName` | String | Yes, provisional | RENAME | Retain separately; exact alias/synchronization semantics unknown. |
 | `fullName` | Undeclared; string written by code | Unknown at entity level; registration/profile UI requires name | Unknown | — | Duplicated from MemberProfile.fullName on save | `fullName` | String | Yes, provisional | MIGRATE | Keep both name spellings; do not automatically overwrite a populated source with another. |
 
@@ -107,11 +209,11 @@ Schema: [MemberProfile.jsonc](../../myais-connect-base44-archive/base44/entities
 
 Code evidence (archive-relative): `src/pages/member/Profile.jsx:20-150`; `src/lib/nameUtils.js:1-26`; `src/pages/member/MyApplication.jsx:70-94`.
 
-The source reads the first matching profile per user or builds a map keyed by userId. This suggests intended single-profile behavior but does not establish a unique constraint. Profile completion uses UI rules, not schema required flags.
+The source reads the first matching profile per user or builds a map keyed by userId. This suggests intended single-profile behavior but does not establish a source unique constraint. Canonical MemberProfile.userId uniqueness is now explicitly approved. Profile completion uses UI rules, not schema required flags.
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | User ID reference |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | User ID reference Approved onDelete: Restrict. Canonical single-column unique approved; retain mapped nullability. |
 | `fullName` | string | Optional | — | — | — | `fullName` | String | Yes | MIGRATE | UI requires trimmed length >=2; normalized whitespace; duplicated into undeclared User.fullName. |
 | `phoneNumber` | string | Optional | — | — | — | `phoneNumber` | String | Yes | MIGRATE | Duplicates User.phoneNumber conceptually; no synchronization found. |
 | `identificationType` | string | Optional | — | `NRIC`, `PASSPORT`, `OTHER` | — | `identificationType` | MemberProfileIdentificationType | Yes | MIGRATE | No field-specific constraint beyond declared type. |
@@ -133,7 +235,10 @@ The source reads the first matching profile per user or builds a map keyed by us
 | `aisMembershipNumber` | string | Optional | — | — | — | `aisMembershipNumber` | String | Yes | MIGRATE | External AIS identifier, no FK/uniqueness contract; required by UI only when aisMember. |
 | `aisMembershipExpiry` | string (date) | Optional | — | — | — | `aisMembershipExpiry` | DateTime @db.Date | Yes | TRANSFORM | Required by profile UI when aisMember; eligibility compares parsed date strictly greater than now. |
 | `profileCompletionPercentage` | number | Optional | `0` | — | — | `profileCompletionPercentage` | Float | Yes | MIGRATE | Rounded percentage over 15 fields, excluding fullName and AIS fields; persisted derived value. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `created_by_id` | Undeclared; exported string | Unknown; system metadata | Unknown | — | Platform creator; User or non-user principal | `legacyCreatedById` | String | Yes, provisional | LEGACY_ONLY | Export presence confirmed; preserve raw. No universal User FK: service-marked creator also occurs. |
@@ -148,17 +253,20 @@ No creation/seed routine is archived. Settings only updates existing types. Code
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `code` | string | Required | — | `ORDINARY`, `LIFETIME`, `ASSOCIATE`, `HONORARY` | — | `code` | MembershipTypeCode | No | MIGRATE | No unique constraint declared; application UI looks up by code. |
+| `code` | string | Required | — | `ORDINARY`, `LIFETIME`, `ASSOCIATE`, `HONORARY` | — | `code` | MembershipTypeCode | No | MIGRATE | No unique constraint declared; application UI looks up by code. Canonical single-column unique approved; retain mapped nullability. |
 | `name` | string | Required | — | — | — | `name` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `description` | string | Optional | — | — | — | `description` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `entranceFee` | number | Optional | `0` | — | — | `entranceFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Settings uses Number(input), no negative-value guard; preserve historical values. |
-| `membershipFee` | number | Optional | `0` | — | — | `membershipFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Settings uses Number(input), no negative-value guard; preserve historical values. |
+| `entranceFee` | number | Optional | `0` | — | — | `entranceFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Settings uses Number(input), no negative-value guard; preserve historical values. |
+| `membershipFee` | number | Optional | `0` | — | — | `membershipFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Settings uses Number(input), no negative-value guard; preserve historical values. |
 | `validityMonths` | number | Optional | `12` | — | — | `validityMonths` | Float | Yes | MIGRATE | Schema default 12; settings labels 0 as lifetime; fractional/negative values not schema-restricted. |
 | `renewable` | boolean | Optional | `true` | — | — | `renewable` | Boolean | Yes | MIGRATE | Declared and editable; no renewal workflow found. |
 | `votingRights` | boolean | Optional | `false` | — | — | `votingRights` | Boolean | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `applicantSelectable` | boolean | Optional | `true` | — | — | `applicantSelectable` | Boolean | Yes | MIGRATE | UI combines this flag with active and eligibility result. |
 | `active` | boolean | Optional | `true` | — | — | `active` | Boolean | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -172,11 +280,11 @@ This is distinct from Membership; do not collapse their statuses. The UI reads t
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `applicationNumber` | string | Optional | — | — | — | `applicationNumber` | String | Yes | MIGRATE | Assigned on submit using current list length, including already-created draft. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `requestedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `requestedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `recommendedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `recommendedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `approvedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `approvedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
+| `applicationNumber` | string | Optional | — | — | — | `applicationNumber` | String | Yes | MIGRATE | Assigned on submit using current list length, including already-created draft. Canonical single-column unique approved; retain mapped nullability. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `requestedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `requestedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `recommendedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `recommendedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `approvedMembershipTypeId` | string | Optional | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `approvedMembershipTypeId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `status` | string | Optional | `"DRAFT"` | `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `ADDITIONAL_INFORMATION_REQUIRED`, `ELIGIBLE`, `RECOMMENDED_FOR_APPROVAL`, `APPROVED_PENDING_PAYMENT`, `PAYMENT_SUBMITTED`, `PAYMENT_UNDER_VERIFICATION`, `ACTIVE`, `REJECTED`, `EXPIRED`, `SUSPENDED`, `TERMINATED` | — | `status` | MembershipApplicationStatus | Yes | MIGRATE | ELIGIBLE declared but no transition in VALID_TRANSITIONS or status writer found. |
 | `currentStep` | number | Optional | `1` | — | — | `currentStep` | Float | Yes | MIGRATE | Schema default 1; creation writes 2; submission writes 4. UI step is separate zero-based state. |
 | `eligibilityScore` | number | Optional | — | — | — | `eligibilityScore` | Float | Yes | MIGRATE | Snapshot from hardcoded five-condition evaluation; schema number has no range. |
@@ -187,12 +295,15 @@ This is distinct from Membership; do not collapse their statuses. The UI reads t
 | `rejectedAt` | string (date-time) | Optional | — | — | — | `rejectedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
 | `rejectionReason` | string | Optional | — | — | — | `rejectionReason` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `latestReviewerRemarks` | string | Optional | — | — | — | `latestReviewerRemarks` | String | Yes | MIGRATE | Latest truthy remarks snapshot; blank new remarks retain previous value. |
-| `reviewedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `reviewedByUserId` | String @db.Uuid | Yes | TRANSFORM | Latest reviewing actor, distinct from full ApplicationReview history. |
-| `approvedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `approvedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
+| `reviewedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `reviewedByUserId` | String @db.Uuid | Yes | TRANSFORM | Latest reviewing actor, distinct from full ApplicationReview history. Approved nullable User FK; onDelete: SetNull. |
+| `approvedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `approvedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
 | `requestedMembershipTypeCode` | string | Optional | — | — | MembershipType.code snapshot; no FK/enum constraint | `requestedMembershipTypeCode` | String | Yes | MIGRATE | Denormalized code; schema permits any string, not MembershipTypeCode enum. |
 | `recommendedMembershipTypeCode` | string | Optional | — | — | MembershipType.code snapshot; no FK/enum constraint | `recommendedMembershipTypeCode` | String | Yes | MIGRATE | Denormalized eligibility result; no later recommendation recalculation found. |
 | `approvedMembershipTypeCode` | string | Optional | — | — | MembershipType.code snapshot; no FK/enum constraint | `approvedMembershipTypeCode` | String | Yes | MIGRATE | Denormalized approved code; kept independently from requested/recommended choices. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -206,7 +317,7 @@ Schema-only entity: no SDK reads or writes found. The live UI's eligibility calc
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `code` | string | Required | — | — | — | `code` | String | No | MIGRATE | No uniqueness or seed values declared. |
+| `code` | string | Required | — | — | — | `code` | String | No | MIGRATE | No uniqueness or seed values declared. Canonical single-column unique approved; retain mapped nullability. |
 | `question` | string | Required | — | — | — | `question` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `inputType` | string | Required | — | `BOOLEAN`, `DATE`, `TEXT`, `SELECT` | — | `inputType` | EligibilityQuestionInputType | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `options` | string | Optional | — | — | — | `options` | String | Yes | MIGRATE | JSON array encoded as string by description only; no parsing or option shape contract found. |
@@ -215,7 +326,10 @@ Schema-only entity: no SDK reads or writes found. The live UI's eligibility calc
 | `active` | boolean | Optional | `true` | — | — | `active` | Boolean | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `ordinaryRule` | string | Optional | — | — | — | `ordinaryRule` | String | Yes | MIGRATE | Expected value per description; no evaluator or grammar for this field found. |
 | `lifetimeRule` | string | Optional | — | — | — | `lifetimeRule` | String | Yes | MIGRATE | Expected value per description; runtime eligibility uses hardcoded logic instead. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -229,14 +343,17 @@ Schema-only entity: no SDK reads or writes found. Local answers/declaration in M
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `questionId` | string | Required | — | — | EligibilityQuestion.id via legacyBase44Id; logical reference, not declared FK | `questionId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `questionId` | string | Required | — | — | EligibilityQuestion.id via legacyBase44Id; logical reference, not declared FK | `questionId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `questionCode` | string | Optional | — | — | EligibilityQuestion.code snapshot | `questionCode` | String | Yes | MIGRATE | Duplicates EligibilityQuestion.code; no population/synchronization code found. |
 | `answerText` | string | Optional | — | — | — | `answerText` | String | Yes | MIGRATE | No XOR constraint with answerBoolean/answerOption. DATE representation unspecified. |
 | `answerBoolean` | boolean | Optional | — | — | — | `answerBoolean` | Boolean | Yes | MIGRATE | No required answer or exactly-one-answer rule in schema. |
 | `answerOption` | string | Optional | — | — | — | `answerOption` | String | Yes | MIGRATE | No relation to options enforced and no answer writer found. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -250,8 +367,8 @@ Each upload creates a new row, even when the UI says “Replace”; no unique(ap
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `documentType` | string | Required | — | `IDENTIFICATION`, `AIS_MEMBERSHIP_PROOF`, `PROFILE_PHOTO`, `PAYMENT_RECEIPT`, `ADDITIONAL_SUPPORTING_DOCUMENT`, `REQUESTED_INFORMATION` | — | `documentType` | ApplicationDocumentDocumentType | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `fileUrl` | string | Optional | — | — | — | `fileUrl` | String | Yes | MIGRATE | Optional in schema despite document-upload purpose; file receipt returned by UploadFile. |
 | `originalFileName` | string | Optional | — | — | — | `originalFileName` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
@@ -259,9 +376,12 @@ Each upload creates a new row, even when the UI says “Replace”; no unique(ap
 | `fileSize` | number | Optional | — | — | — | `fileSize` | Float | Yes | MIGRATE | Browser File.size is bytes. Schema permits any number; do not impose integer/range without profiling. |
 | `verificationStatus` | string | Optional | `"PENDING"` | `PENDING`, `VERIFIED`, `INVALID`, `RESUBMISSION_REQUIRED` | — | `verificationStatus` | ApplicationDocumentVerificationStatus | Yes | MIGRATE | Uploader writes PENDING. No verification mutation found. |
 | `reviewerRemarks` | string | Optional | — | — | — | `reviewerRemarks` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `verifiedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `verifiedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
+| `verifiedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `verifiedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
 | `verifiedAt` | string (date-time) | Optional | — | — | — | `verifiedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -275,14 +395,17 @@ Append-style records are created by the UI, but JSONC permits admin update/delet
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `reviewerUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `reviewerUserId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `reviewerUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `reviewerUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
 | `reviewerName` | string | Optional | — | — | — | `reviewerName` | String | Yes | MIGRATE | Historical name snapshot from getCurrentFullName(null, user). |
 | `decision` | string | Required | — | `START_REVIEW`, `REQUEST_INFORMATION`, `RECOMMEND_APPROVAL`, `APPROVE`, `REJECT`, `RETURN_FOR_CORRECTION` | — | `decision` | ApplicationReviewDecision | No | MIGRATE | RETURN_FOR_CORRECTION declared but no handler found. |
 | `remarks` | string | Optional | — | — | — | `remarks` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `previousStatus` | string | Optional | — | — | — | `previousStatus` | String | Yes | MIGRATE | Free string, not a declared application enum. Preserve original. |
 | `newStatus` | string | Optional | — | — | — | `newStatus` | String | Yes | MIGRATE | Free string; honorary approval records ACTIVE directly. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -296,8 +419,8 @@ Ownership is indirect through applicationId; there is no applicant userId proper
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `requestedByUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `requestedByUserId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `applicationId` | string | Required | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `requestedByUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `requestedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
 | `requestedByName` | string | Optional | — | — | — | `requestedByName` | String | Yes | MIGRATE | Reviewer-name snapshot. |
 | `message` | string | Required | — | — | — | `message` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `dueDate` | string (date) | Optional | — | — | — | `dueDate` | DateTime @db.Date | Yes | TRANSFORM | Reviewer UI permits omission and writes null; no automatic OVERDUE transition found. |
@@ -305,7 +428,10 @@ Ownership is indirect through applicationId; there is no applicant userId proper
 | `applicantResponse` | string | Optional | — | — | — | `applicantResponse` | String | Yes | MIGRATE | UI requires nonblank response; optional in schema. |
 | `responseAttachmentUrl` | string | Optional | — | — | — | `responseAttachmentUrl` | String | Yes | MIGRATE | Response writer sets null when no attachment; not an ApplicationDocument FK. |
 | `respondedAt` | string (date-time) | Optional | — | — | — | `respondedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -319,10 +445,10 @@ Can be created by honorary approval or payment verification. Payment verificatio
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `membershipNumber` | string | Optional | — | — | — | `membershipNumber` | String | Yes | MIGRATE | Generated display identifier; not primary key, uniqueness not declared. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `applicationId` | string | Optional | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `membershipTypeId` | string | Required | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `membershipTypeId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `membershipNumber` | string | Optional | — | — | — | `membershipNumber` | String | Yes | MIGRATE | Generated display identifier; not primary key, uniqueness not declared. Canonical single-column unique approved; retain mapped nullability. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `applicationId` | string | Optional | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. Canonical single-column unique approved; retain mapped nullability. |
+| `membershipTypeId` | string | Required | — | — | MembershipType.id via legacyBase44Id; logical reference, not declared FK | `membershipTypeId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `membershipTypeCode` | string | Optional | — | — | MembershipType.code snapshot; no FK/enum constraint | `membershipTypeCode` | String | Yes | MIGRATE | Snapshot of application-approved code with type-code fallback; no enum constraint. |
 | `membershipTypeName` | string | Optional | — | — | MembershipType.name snapshot | `membershipTypeName` | String | Yes | MIGRATE | Snapshot of type.name at activation. |
 | `startDate` | string (date) | Optional | — | — | — | `startDate` | DateTime @db.Date | Yes | TRANSFORM | Writers use UTC ISO date substring of activation time. |
@@ -332,7 +458,10 @@ Can be created by honorary approval or payment verification. Payment verificatio
 | `activatedAt` | string (date-time) | Optional | — | — | — | `activatedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
 | `suspendedAt` | string (date-time) | Optional | — | — | — | `suspendedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
 | `terminatedAt` | string (date-time) | Optional | — | — | — | `terminatedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -346,14 +475,14 @@ Manual payment proof/verification only. A VERIFIED honorary payment can lack pai
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paymentReference` | string | Optional | — | — | — | `paymentReference` | String | Yes | MIGRATE | Generated independently from bank transactionReference. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `applicationId` | string | Optional | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `membershipId` | string | Optional | — | — | Membership.id via legacyBase44Id; logical reference, not declared FK | `membershipId` | String @db.Uuid | Yes | TRANSFORM | No activation writer backfills it; do not assume one-to-one paid membership link. |
+| `paymentReference` | string | Optional | — | — | — | `paymentReference` | String | Yes | MIGRATE | Generated independently from bank transactionReference. Canonical single-column unique approved; retain mapped nullability. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `applicationId` | string | Optional | — | — | MembershipApplication.id via legacyBase44Id; logical reference, not declared FK | `applicationId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. Canonical single-column unique approved; retain mapped nullability. |
+| `membershipId` | string | Optional | — | — | Membership.id via legacyBase44Id; logical reference, not declared FK | `membershipId` | String @db.Uuid | Yes | TRANSFORM | No activation writer backfills it; do not assume one-to-one paid membership link. Approved onDelete: Restrict. |
 | `paymentType` | string | Required | — | `ENTRANCE_AND_ANNUAL`, `ENTRANCE_AND_LIFETIME`, `RENEWAL`, `OTHER` | — | `paymentType` | PaymentPaymentType | No | MIGRATE | Honorary approval writes OTHER and VERIFIED; normal fallback submit path only annual/lifetime. |
-| `entranceFee` | number | Optional | `0` | — | — | `entranceFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Fee snapshot from MembershipType at record creation; retained when existing payment is submitted. |
-| `membershipFee` | number | Optional | `0` | — | — | `membershipFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Fee snapshot; do not refresh from live settings during import. |
-| `totalAmount` | number | Required | `0` | — | — | `totalAmount` | Decimal (precision/scale TBD) | No | TRANSFORM | Derived fee sum on creation but independently stored; required even though schema default is 0. |
+| `entranceFee` | number | Optional | `0` | — | — | `entranceFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Fee snapshot from MembershipType at record creation; retained when existing payment is submitted. |
+| `membershipFee` | number | Optional | `0` | — | — | `membershipFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Fee snapshot; do not refresh from live settings during import. |
+| `totalAmount` | number | Required | `0` | — | — | `totalAmount` | Decimal @db.Decimal(12, 2) | No | TRANSFORM | Derived fee sum on creation but independently stored; required even though schema default is 0. |
 | `currency` | string | Optional | `"MYR"` | — | — | `currency` | String | Yes | MIGRATE | Free string, schema default MYR; writers use MYR. |
 | `paymentMethod` | string | Optional | — | — | — | `paymentMethod` | String | Yes | MIGRATE | Schema free string; UI choices BANK_TRANSFER, ONLINE_BANKING, CASH_DEPOSIT only. |
 | `bankName` | string | Optional | — | — | — | `bankName` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
@@ -362,11 +491,14 @@ Manual payment proof/verification only. A VERIFIED honorary payment can lack pai
 | `status` | string | Optional | `"NOT_SUBMITTED"` | `NOT_SUBMITTED`, `SUBMITTED`, `UNDER_VERIFICATION`, `VERIFIED`, `REJECTED` | — | `status` | PaymentStatus | Yes | MIGRATE | UI can verify SUBMITTED directly; UNDER_VERIFICATION has no assignment path found. |
 | `paidAt` | string (date-time) | Optional | — | — | — | `paidAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Writer parses date input to ISO; defaults to current time when omitted. Not provider-confirmed timestamp. |
 | `submittedAt` | string (date-time) | Optional | — | — | — | `submittedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `verifiedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `verifiedByUserId` | String @db.Uuid | Yes | TRANSFORM | Set on manual verify; honorary approval creates VERIFIED payment without this field. |
+| `verifiedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `verifiedByUserId` | String @db.Uuid | Yes | TRANSFORM | Set on manual verify; honorary approval creates VERIFIED payment without this field. Approved nullable User FK; onDelete: SetNull. |
 | `verifiedAt` | string (date-time) | Optional | — | — | — | `verifiedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Set on manual verify; honorary VERIFIED payment omits it. |
 | `rejectionReason` | string | Optional | — | — | — | `rejectionReason` | String | Yes | MIGRATE | Not cleared on re-submission or verify in shown code; preserve stale historical content. |
 | `treasurerRemarks` | string | Optional | — | — | — | `treasurerRemarks` | String | Yes | MIGRATE | Copied from same remarks as rejectionReason on rejection. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -381,16 +513,19 @@ Schema-only entity: no SDK read/write or reference-number generator found. /rene
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `renewalNumber` | string | Optional | — | — | — | `renewalNumber` | String | Yes | MIGRATE | No generation rule or writer found. |
-| `membershipId` | string | Required | — | — | Membership.id via legacyBase44Id; logical reference, not declared FK | `membershipId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `membershipId` | string | Required | — | — | Membership.id via legacyBase44Id; logical reference, not declared FK | `membershipId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `previousExpiryDate` | string (date) | Optional | — | — | — | `previousExpiryDate` | DateTime @db.Date | Yes | TRANSFORM | Historical expiry snapshot by field name; no population rule found. |
 | `newExpiryDate` | string (date) | Optional | — | — | — | `newExpiryDate` | DateTime @db.Date | Yes | TRANSFORM | Proposed renewal date by field name; no computation rule found. |
-| `fee` | number | Optional | — | — | — | `fee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | No fee computation/writer found; preserve numeric value. |
+| `fee` | number | Optional | — | — | — | `fee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | No fee computation/writer found; preserve numeric value. |
 | `status` | string | Optional | `"PENDING"` | `PENDING`, `PAYMENT_SUBMITTED`, `APPROVED`, `REJECTED` | — | `status` | RenewalApplicationStatus | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `submittedAt` | string (date-time) | Optional | — | — | — | `submittedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `paymentId` | string | Optional | — | — | Payment.id via legacyBase44Id; logical reference, not declared FK | `paymentId` | String @db.Uuid | Yes | TRANSFORM | Schema-name reference only; no code proving cardinality or creation order. |
+| `paymentId` | string | Optional | — | — | Payment.id via legacyBase44Id; logical reference, not declared FK | `paymentId` | String @db.Uuid | Yes | TRANSFORM | Schema-name reference only; no code proving cardinality or creation order. Approved onDelete: Restrict. |
 | `approvedAt` | string (date-time) | Optional | — | — | — | `approvedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -400,11 +535,11 @@ Schema: [Event.jsonc](../../myais-connect-base44-archive/base44/entities/Event.j
 
 Code evidence (archive-relative): `base44/functions/manageEvent/entry.ts:10-146`; `src/pages/admin/EventFormPage.jsx:10-35`; `src/components/events/EventForm.jsx:35-69`; `src/components/events/eventUtils.jsx:1-26`; `src/pages/events/EventDetail.jsx:14-43`.
 
-Only entity with explicit createdAt/updatedAt business fields in addition to implicit platform metadata. Server write path is manageEvent; preserve both timestamp pairs independently.
+Event is the only Base44 entity with explicit createdAt/updatedAt in addition to platform metadata. These map directly to the canonical lifecycle fields shared by all 18 models; created_date/updated_date map to legacyCreatedAt/legacyUpdatedAt. No duplicate Event lifecycle fields. Server write path is manageEvent.
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `eventNumber` | string | Optional | — | — | — | `eventNumber` | String | Yes | MIGRATE | Two conflicting generators; create permits caller-supplied value. See reference-number rules. |
+| `eventNumber` | string | Optional | — | — | — | `eventNumber` | String | Yes | MIGRATE | Two conflicting generators; create permits caller-supplied value. See reference-number rules. Canonical single-column unique approved; retain mapped nullability. |
 | `title` | string | Required | — | — | — | `title` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `slug` | string | Optional | — | — | — | `slug` | String | Yes | MIGRATE | Generated on create/update or preserved if supplied; not unique; detail routes use id. |
 | `category` | string | Required | — | `Seminars and Webinars`, `Workshops`, `Meetings`, `MyDCIS`, `Conferences`, `Other` | — | `category` | EventCategory | No | MIGRATE | Enum labels include spaces and mixed case; preserve stored labels with enum value mapping. |
@@ -426,23 +561,24 @@ Only entity with explicit createdAt/updatedAt business fields in addition to imp
 | `registrationDeadline` | string (date) | Optional | — | — | — | `registrationDeadline` | DateTime @db.Date | Yes | TRANSFORM | Server rejects dates after startDate; UI closes when parsed date is earlier than current instant. |
 | `capacity` | number | Optional | — | — | — | `capacity` | Float | Yes | MIGRATE | Server tests positivity only when truthy; numeric 0 bypasses check. No integer constraint. |
 | `limitedSeats` | boolean | Optional | `false` | — | — | `limitedSeats` | Boolean | Yes | MIGRATE | Presentation flag, not evidence of capacity enforcement. |
-| `memberFee` | number | Optional | `0` | — | — | `memberFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Server rejects negative Number(value \|\| 0); Decimal scale/range unresolved. |
-| `nonMemberFee` | number | Optional | `0` | — | — | `nonMemberFee` | Decimal (precision/scale TBD) | Yes | TRANSFORM | Server rejects negative Number(value \|\| 0); Decimal scale/range unresolved. |
+| `memberFee` | number | Optional | `0` | — | — | `memberFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Server rejects negative Number(value \|\| 0); Approved Decimal(12,2); no new nonnegative schema constraint. |
+| `nonMemberFee` | number | Optional | `0` | — | — | `nonMemberFee` | Decimal @db.Decimal(12, 2) | Yes | TRANSFORM | Server rejects negative Number(value \|\| 0); Approved Decimal(12,2); no new nonnegative schema constraint. |
 | `currency` | string | Optional | `"MYR"` | — | — | `currency` | String | Yes | MIGRATE | Free string, not ISO-code enum; no length constraint. |
 | `paymentInstructions` | string | Optional | — | — | — | `paymentInstructions` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `registrationUrl` | string | Optional | — | — | — | `registrationUrl` | String | Yes | MIGRATE | Stored and editable, but public registration button is disabled. |
 | `status` | string | Optional | `"DRAFT"` | `DRAFT`, `PUBLISHED`, `REGISTRATION_CLOSED`, `CANCELLED`, `COMPLETED`, `ARCHIVED` | — | `status` | EventStatus | Yes | MIGRATE | Server status action lacks a transition whitelist and skips validateEvent. |
 | `targetAudience` | string | Optional | `"MEMBERS_AND_NON_MEMBERS"` | `MEMBERS`, `NON_MEMBERS`, `MEMBERS_AND_NON_MEMBERS` | — | `targetAudience` | EventTargetAudience | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `createdBy` | string | Optional | — | — | Real User via legacy-ID lookup; platform principals are not Users | `createdByUserId` | String @db.Uuid | Yes | TRANSFORM | Populate nullable User FK for a real User; system/service/platform creator becomes NULL (R12 resolved). |
+| `createdBy` | string | Optional | — | — | Real User via legacy-ID lookup; platform principals are not Users | `createdByUserId` | String @db.Uuid | Yes | TRANSFORM | Populate nullable User FK for a real User; system/service/platform creator becomes NULL (R12 resolved). Approved nullable User FK; onDelete: SetNull. |
 | `createdBy` (platform principal copy) | Source string | Optional | — | — | Platform/system/service provenance; no FK | `legacyCreatedBy` | String | Yes | LEGACY_ONLY | Preserve exact principal identifier/value; exported system sentinel is retained. No authenticatable fake user. |
 | No Base44 field (approved target addition) | — | — | — | — | Event local scheduling timezone | `timezone` | String | No | TRANSFORM | Default Asia/Kuala_Lumpur unless explicitly migrated otherwise; IANA timezone, separate from local clocks. |
-| `createdAt` | string (date-time) | Optional | — | — | — | `createdAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Explicit business timestamp; distinct from platform created_date. Both must survive. |
-| `updatedAt` | string (date-time) | Optional | — | — | — | `updatedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Explicit business timestamp; distinct from platform updated_date. Both must survive. |
+| `createdAt` | string (date-time) | Optional | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | Base44 explicit Event timestamp maps directly to this canonical lifecycle field; platform timestamp remains separate. No duplicate field. |
+| `updatedAt` | string (date-time) | Optional | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | Base44 explicit Event timestamp maps directly to this canonical lifecycle field; platform timestamp remains separate. No duplicate field. |
 | `publishedAt` | string (date-time) | Optional | — | — | — | `publishedAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Set on create(PUBLISHED)/status(PUBLISHED); generic update-to-PUBLISHED does not set it. Duplicate clears it. |
 | `cancelledAt` | string (date-time) | Optional | — | — | — | `cancelledAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Set by status(CANCELLED); duplication does not clear it. |
 | `cancellationReason` | string | Optional | — | — | — | `cancellationReason` | String | Yes | MIGRATE | Set by status(CANCELLED), including empty string; duplication retains it. |
 | `placeholderImageNotice` | boolean | Optional | `false` | — | — | `placeholderImageNotice` | Boolean | Yes | MIGRATE | Independent boolean; not automatically derived from missing coverImage. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -456,15 +592,18 @@ Reader and attendeeName-update path exist; creation, attendance marking and even
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `eventId` | string | Required | — | — | Event.id via legacyBase44Id; logical reference, not declared FK | `eventId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `eventId` | string | Required | — | — | Event.id via legacyBase44Id; logical reference, not declared FK | `eventId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `attendeeName` | string | Optional | — | — | — | `attendeeName` | String | Yes | MIGRATE | Denormalized user/profile name; Profile save rewrites existing registrations. |
 | `attendeeEmail` | string | Optional | — | — | — | `attendeeEmail` | String | Yes | MIGRATE | Name suggests email snapshot; no producer or sync rule found. |
 | `status` | string | Optional | `"REGISTERED"` | `REGISTERED`, `CANCELLED`, `ATTENDED`, `NO_SHOW` | — | `status` | EventRegistrationStatus | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `paymentStatus` | string | Optional | `"PENDING"` | `NOT_REQUIRED`, `PENDING`, `PAID`, `FAILED` | — | `paymentStatus` | EventRegistrationPaymentStatus | Yes | MIGRATE | Independent enum; no Payment relation/amount/currency in this entity. |
 | `registeredAt` | string (date-time) | Optional | — | — | — | `registeredAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No registration-creation writer found. |
 | `notes` | string | Optional | — | — | — | `notes` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -488,9 +627,12 @@ Editing overwrites creator fields; scheduled publishing/expiry and audience enfo
 | `status` | string | Optional | `"DRAFT"` | `DRAFT`, `SCHEDULED`, `PUBLISHED`, `ARCHIVED` | — | `status` | AnnouncementStatus | Yes | MIGRATE | SCHEDULED is in schema but absent from form choices. |
 | `publishAt` | string (date-time) | Optional | — | — | — | `publishAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No scheduler or writer found; preserve if present. |
 | `expiryAt` | string (date-time) | Optional | — | — | — | `expiryAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | No expiration enforcement or writer found. |
-| `createdByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `createdByUserId` | String @db.Uuid | Yes | TRANSFORM | Overwritten with current editor on both create and update; not reliably the original author. |
+| `createdByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `createdByUserId` | String @db.Uuid | Yes | TRANSFORM | Overwritten with current editor on both create and update; not reliably the original author. Approved nullable User FK; onDelete: SetNull. |
 | `createdByName` | string | Optional | — | — | — | `createdByName` | String | Yes | MIGRATE | Snapshot from user.full_name; also overwritten on edit. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -504,7 +646,7 @@ Related-entity metadata is optional and not consistently supplied. No FK is infe
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `userId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `userId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. Approved onDelete: Restrict. |
 | `title` | string | Required | — | — | — | `title` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `message` | string | Required | — | — | — | `message` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `type` | string | Optional | — | `APPLICATION`, `PAYMENT`, `MEMBERSHIP`, `ANNOUNCEMENT`, `SYSTEM` | — | `type` | NotificationType | Yes | MIGRATE | No field-specific constraint beyond declared type. |
@@ -513,7 +655,10 @@ Related-entity metadata is optional and not consistently supplied. No FK is infe
 | `actionUrl` | string | Optional | — | — | — | `actionUrl` | String | Yes | MIGRATE | Internal navigation path, not a file URL or FK; preserve and review legacy routes. |
 | `isRead` | boolean | Optional | `false` | — | — | `isRead` | Boolean | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `readAt` | string (date-time) | Optional | — | — | — | `readAt` | DateTime @db.Timestamptz(3) | Yes | TRANSFORM | Both single/bulk UI mark-read operations write an ISO timestamp. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -527,7 +672,7 @@ Retain recorded actor names, actions and raw polymorphic references. The payment
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `actorUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `actorUserId` | String @db.Uuid | No | TRANSFORM | No field-specific constraint beyond declared type. |
+| `actorUserId` | string | Required | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `actorUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
 | `actorName` | string | Optional | — | — | — | `actorName` | String | Yes | MIGRATE | Historical snapshot; writers disagree between fullName and full_name/email. |
 | `action` | string | Required | — | — | — | `action` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
 | `entityType` | string | Optional | — | — | — | `entityType` | String | Yes | MIGRATE | Free string discriminator. Known writers: MembershipApplication, Payment, InformationRequest, MemberProfile, Event. |
@@ -535,7 +680,10 @@ Retain recorded actor names, actions and raw polymorphic references. The payment
 | `oldValues` | string | Optional | — | — | — | `oldValues` | String | Yes | MIGRATE | JSON-encoded string by description only; no writer found. Keep text, including invalid JSON and whitespace. |
 | `newValues` | string | Optional | — | — | — | `newValues` | String | Yes | MIGRATE | JSON-encoded string by description only; no writer found. Keep text, including invalid JSON and whitespace. |
 | `description` | string | Required | — | — | — | `description` | String | No | MIGRATE | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -549,12 +697,15 @@ Schema-only entity: no SDK reads/writes found. AdminSettings edits MembershipTyp
 
 | Base44 field | Base44 type | Required/optional | Default | Enum values | Relationship/reference | Proposed PostgreSQL/Prisma field | Proposed Prisma type | Nullable? | Migration action | Notes / validation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `settingKey` | string | Required | — | — | — | `settingKey` | String | No | MIGRATE | No uniqueness or key catalogue declared; organisation form is hardcoded. |
+| `settingKey` | string | Required | — | — | — | `settingKey` | String | No | MIGRATE | No uniqueness or key catalogue declared; organisation form is hardcoded. Canonical single-column unique approved; retain mapped nullability. |
 | `settingValue` | string | Required | — | — | — | `settingValue` | String | No | MIGRATE | String even for NUMBER/BOOLEAN/JSON settingType; no parser contract found. |
 | `settingType` | string | Optional | — | `STRING`, `NUMBER`, `BOOLEAN`, `JSON` | — | `settingType` | SystemSettingSettingType | Yes | MIGRATE | No field-specific constraint beyond declared type. |
 | `description` | string | Optional | — | — | — | `description` | String | Yes | MIGRATE | No field-specific constraint beyond declared type. |
-| `updatedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `updatedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. |
-| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String | No for imported records; native rows may be null | RENAME | New id generated independently. Copy original ID exactly. |
+| `updatedByUserId` | string | Optional | — | — | User.id via legacyBase44Id; logical reference, not declared FK | `updatedByUserId` | String @db.Uuid | Yes | TRANSFORM | No field-specific constraint beyond declared type. Approved nullable User FK; onDelete: SetNull. |
+| No Base44 field (canonical identity) | — | — | — | — | Canonical primary key | `id` | String @id @default(uuid()) @db.Uuid | No | TRANSFORM | New UUID, independent of legacyBase44Id. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `createdAt` | DateTime @default(now()) @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; migration initialization from legacy time requires established source timezone. |
+| No Base44 field (canonical lifecycle) | — | — | — | — | — | `updatedAt` | DateTime @updatedAt @db.Timestamptz(3) | No | TRANSFORM | New-system lifecycle timestamp; imported legacyUpdatedAt remains independent. |
+| `id` | Implicit string; no declaration | System; contract absent | Platform-generated; algorithm unknown | — | This entity's legacy identity | `legacyBase44Id` | String @unique | Yes; populated for imported records | RENAME | Separate original Base44 identity; new native records may leave NULL. |
 | `created_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyCreatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 | `updated_date` | Implicit date string; no declaration | Unknown; system metadata | Platform-managed; exact contract unknown | — | — | `legacyUpdatedAt` | DateTime @db.Timestamptz(3) | Yes; export presence profiled below | TRANSFORM | Canonical UTC instant; retain raw input privately. Source-zone interpretation precedes offset-less import (R25 HIGH); R18 schema decision resolved. |
 
@@ -611,10 +762,10 @@ Additional associations are deliberately not modeled as direct foreign keys:
 | File URL fields | Uploaded/external objects. | No File entity or storage-object foreign key is defined. |
 | EventRegistration.paymentStatus | Event-specific payment state. | No Payment/eventRegistrationId/eventId bridge exists in Payment. Do not invent one. |
 
-Important cardinality and integrity limits:
+Important cardinality and integrity limits (source/export observations below; the final approved target constraints above supersede earlier approval gates):
 
 - MemberProfile is selected with `filter({ userId })[0]`; other pages build a map keyed by userId. This implies expected single-profile display but does not prove one-to-one data. Newest-first list/map loops can also overwrite a newer profile with an older duplicate.
-- Users can have multiple MembershipApplication, Membership, Payment, and EventRegistration records. Latest-record queries and UI hiding are not database uniqueness constraints. Do not add unique(userId), unique(applicationId), or unique(eventId, userId) without export checks and an approved rule.
+- Users can have multiple MembershipApplication, Membership, Payment, and EventRegistration records. Latest-record queries and UI hiding are not database uniqueness constraints. The final approved constraints apply: Membership.applicationId and Payment.applicationId are unique; application/membership/payment userId and EventRegistration(eventId, userId) are not unique.
 - ApplicationDocument allows repeated documentType values per application. “Replace” creates another row; it does not overwrite/delete the old one automatically.
 - EligibilityAnswer has no declared unique(applicationId, questionId) or exactly-one-answer constraint.
 - Multiple InformationRequest and ApplicationReview rows can reference one application. No status uniqueness is declared for OPEN requests.
@@ -623,7 +774,7 @@ Important cardinality and integrity limits:
 - Ownership duplicates (`userId` on documents/answers/payments/memberships) must agree with linked application owners before relational import. Source RLS does not encode those cross-record equalities. Likewise compare Payment.userId with Membership.userId where membershipId exists, and RenewalApplication.userId with the linked Membership/Payment owners.
 - Reference strings must never be cast directly from Base44 IDs into UUIDs. Build a lookup for each entity using legacyBase44Id. Preserve both old and new identities in the restricted import ledger.
 - Follow AGENTS.md for the two known deleted-user references: represent the users as disabled, non-login legacy identities with new IDs, preserving historical FKs. No email, role, or personal details are inferred. Other unexpected missing references must be reported separately, not silently linked to a generic user.
-- No source delete cascade, referential action, unique business key, or SQL index is defined. Analyze duplicate emails, type codes, question codes, setting keys, display reference numbers, and slugs before choosing constraints.
+- No source delete cascade, referential action, unique business key, or SQL index is defined. The export audit and subsequent user approval now determine the canonical unique allowlist and Restrict/SetNull policy.
 
 ## All declared enums
 
@@ -844,7 +995,7 @@ None of these schemas declares URL validation, a private/public flag, object key
 
 ## Inconsistencies and risks requiring resolution
 
-Severity counts below use unique R01–R27 issue groups, not individual cells or repeated references. R01, R12 and R18 are resolved by user approval; the other 24 groups retain unresolved findings; factual subfindings resolved by exports are explicitly identified in the last column. BLOCKER prevents finalizing the affected canonical mapping; HIGH risks integrity/security; MEDIUM needs specification before its affected workflow/constraint; LOW is documentation/provenance follow-up.
+Severity counts below use unique R01–R27 issue groups, not individual cells or repeated references. R01, R12, R15 and R18 are resolved by user approval. R19 monetary storage is resolved; its remaining numeric validation questions are MEDIUM. The other 23 groups retain later-phase findings; factual subfindings resolved by exports are explicitly identified in the last column. BLOCKER prevents finalizing the affected canonical mapping; HIGH risks integrity/security; MEDIUM needs specification before its affected workflow/constraint; LOW is documentation/provenance follow-up.
 
 | ID | Current severity / status | Source evidence | Finding and consequence | Current export disposition |
 | --- | --- | --- | --- | --- |
@@ -862,11 +1013,11 @@ Severity counts below use unique R01–R27 issue groups, not individual cells or
 | R12 | RESOLVED | User approval; Event.jsonc; manageEvent | Canonical creator and timestamp separation are approved despite source/system differences. | Nullable createdByUserId for real User matches; platform principals -> NULL FK plus exact legacyCreatedBy. No authenticatable fake users. Keep business/system dates separate. Workflow issues remain R21; platform contract remains R25. |
 | R13 | HIGH | User.jsonc; Register:54; Profile:59,100; nameUtils:18-26 | fullName and full_name are undeclared competing User fields; profile helper ignores full_name. Do not rename both into one target column and lose a populated value. | User.fullName is absent from the CSV. Two comparable profile names differ from full_name (one profile value is blank); one phone differs. Preserve all original values; no authoritative-name/phone merge is established. |
 | R14 | MEDIUM | AnnouncementManagement:33-35; Profile:102-105; EventRegistrations:43-45 | Author snapshots are overwritten by editors, registration names are resynchronized, and displays use current identity instead of historical snapshot. Snapshot does not necessarily mean immutable. | Three reviewer-name and six actor-name snapshots differ from current User.full_name. All four announcements lack createdByUserId. Preserve snapshots; do not infer identity from names or metadata. |
-| R15 | HIGH | All schemas; latest/first-record queries; AGENTS.md orphan requirement | FK/cardinality/uniqueness are not schema-enforced. Export integrity and orphan findings below qualify the earlier source-only uncertainty; schema names do not prove constraints. | All 34 candidate references checked. Exactly two mapped deleted users account for nine required domain references and eight creator metadata cells; identity handling is mandated by AGENTS.md. Other conventional non-User targets resolve, but observed multiplicity forbids unique(userId) for membership/application. On-delete and other uniqueness rules remain unapproved. |
+| R15 | RESOLVED | User approval 2026-09-15; relationship/export audit | Canonical deletion, actor nullability and uniqueness are approved. | Business/ownership FKs Restrict; ten named actor FKs nullable with SetNull; no business/history cascade. Explicit unique allowlist and exclusions govern implementation. Both disabled human identities and all historical snapshots remain preserved. |
 | R16 | MEDIUM | EligibilityQuestion/Answer, RenewalApplication, SystemSetting schemas; MyApplication:70-118; App.jsx /renew | Four entities have no SDK readers/writers. Question rules are bypassed by hardcoded eligibility; answers/declaration are not persisted; renewal/settings behavior is incomplete. Empty entities still need future schema support. | All four confirmed empty exports are zero-byte files; retain their schemas. Six questions and nine settings are populated despite missing SDK consumers. Answer/renewal semantics, unseen setting types and unused rule grammar remain unresolved. |
 | R17 | HIGH | MyApplication:183-195,236-237; PaymentPage:203-223; Profile:145-150; InformationResponse:99-118 | Application MIME/5 MiB validation is not shared across upload flows. AIS proof is required even for ASSOCIATE; a document row without a URL can satisfy the UI gate. Preserve data, flag policy conflict rather than “fixing” imports. | Eleven document rows declare application/pdf, including three PROFILE_PHOTO rows, all within 5 MiB. Fifteen stored upload/image URLs have /public/ paths. File bytes, ownership/access and policy across flows remain unverified; no retrieval occurred. |
 | R18 | RESOLVED | User approval; date/null export audit | Canonical date/time/null representation is approved. | System/event/action instants -> UTC timestamptz; business dates -> date; Event clocks stay local with timezone Asia/Kuala_Lumpur unless explicitly migrated otherwise; blank optional values -> NULL. Offset-less source-zone interpretation remains an import-execution follow-up within R25 HIGH, not a canonical-type blocker. |
-| R19 | HIGH | All number fields; AdminSettings:64-75; manageEvent:35-36 | Number is not integer, monetary scale is undeclared, negative type fees are not blocked, and zero event capacity bypasses validation. Do not impose Int or Decimal(…,2) without profiling. | All observed schema numbers are finite, nonnegative integral text. This supports parsing these rows, not permanent Int constraints or money scale; financial precision and allowed future ranges need approval. |
+| R19 | MEDIUM | User approval 2026-09-15; number-field audit | Monetary schema decision RESOLVED: all eight monetary fields use Decimal @db.Decimal(12, 2). | Observed amounts fit exactly; other number fields retain mapped Float. Future input validation bounds, negative-value policy and out-of-scale input handling are not specified, but no additional numeric constraint is required for this schema implementation. |
 | R20 | MEDIUM | PaymentPage:70-99,158-170; PaymentManagement:82-113 | Stored payment fees may differ from current type fee display; activation uses live validity/name/voting policy. Preserve amounts and membership snapshots rather than recalculating from present settings. | All checked type codes, membership name/voting snapshots and payment fee sums agree in the sample. Preserve separately; sample agreement does not authorize recomputation or removal. |
 | R21 | MEDIUM | manageEvent:54-56,85-119,130-146; EventForm:21,68-69 | Event status action bypasses validation/transitions; generic update can publish without publishedAt; duplicate keeps cancellation metadata; form buttons override selected status. Timestamp/status invariants cannot be assumed. | One PUBLISHED event has publishedAt. No cancelled/archived/duplicate samples settle the source timestamp/transition defects. |
 | R22 | HIGH | Event.jsonc / Announcement.jsonc RLS; EventDetail:14; Events:18; Announcements:13 | Public event detail queries by ID without publication filter; announcement read filters only PUBLISHED, not audience/schedule/expiry. Actual platform read restrictions unknown. Do not expose restricted rows/links based on UI alone. | Published event and announcements do not establish audience/access enforcement. /public/ URL structure is not proof of authorized retrieval. |
@@ -876,15 +1027,15 @@ Severity counts below use unique R01–R27 issue groups, not individual cells or
 | R26 | MEDIUM | Schema descriptions for JSON strings; AuditLog/Notification polymorphic fields | Converting text snapshots to Json, narrowing free strings to enums, or inferring missing polymorphic IDs could destroy unsupported historical values. Preserve text/raw IDs until reviewed. | Question options has one valid JSON string-array; five blanks. Audit oldValues/newValues are all blank. Two Membership notifications lack relatedEntityId. Do not narrow strings, infer IDs or convert unseen JSON payloads. |
 | R27 | LOW | Source inventory; docs/migration-status.md | Archive relocation and supplied-export inspection are complete. Phase status and deployed/export-version attestation remain documentation/provenance gaps. | Sibling archive now exists at the same recorded commit; previous location blocker and lack-of-export evidence are resolved. Phase-status doc remains stale and export/deployed-version alignment has no attestation; only this draft is updated. |
 
-## Explicit ambiguity register and next-phase gates
+## Remaining later-phase findings
 
-No decision here authorizes code/schema changes. These gates summarize the issue groups above and are **not additional issues** for severity counting.
+Canonical Prisma implementation is approved by the cumulative decisions. The findings below are later-phase follow-ups, not canonical-schema implementation gates, and are **not additional issues** for severity counting. This documentation-only turn creates no schema or migration.
 
-1. **User roles/platform fields — R01 resolved; HIGH R13/R25; MEDIUM R02.** Approved role mapping and nullable legacyRole apply. Name reconciliation, unknown route aliases, auth and future uniqueness contracts remain open.
+1. **User roles/platform fields — R01 resolved; HIGH R13/R25; MEDIUM R02.** Approved role mapping and nullable legacyRole apply. Name reconciliation, unknown route aliases, auth and the approved unique allowlist applies; other auth contracts remain open.
 2. **System metadata — R18 resolved; HIGH R25.** UTC timestamptz is approved. Preserve platform creators/raw timestamp provenance; establish source-zone interpretation before offset-less imports.
-3. **Direct references — R12 resolved; HIGH R15/R09.** Nullable Event creator FK and legacyCreatedBy are approved. Preserve disabled human identities and overlapping memberships; on-delete/other uniqueness choices remain open.
+3. **Direct references — R12 resolved; R15 resolved; HIGH R09.** Nullable Event creator FK and legacyCreatedBy are approved. Preserve disabled human identities and overlapping memberships; Restrict/nullable-SetNull and the unique allowlist are now approved (R15 resolved).
 4. **Optional fields/defaults — R18 resolved.** Blank optional values become NULL, including User.accountStatus. Do not apply source defaults retrospectively or conflate false/zero with blank.
-5. **Numbers/dates — R18 resolved; HIGH R19/R24/R25.** Target time/date/clock semantics are approved. Money precision, numeric bounds, calendar-month behavior and source-zone import interpretation remain open.
+5. **Numbers/dates — R18 resolved; R19 schema resolved (MEDIUM validation follow-up); HIGH R24/R25.** Target time/date/clock semantics are approved. Money precision is approved as Decimal(12,2). Future numeric validation, calendar-month behavior and source-zone import interpretation remain later-phase findings.
 6. **Empty/unused concepts — MEDIUM R16/R26.** Preserve the four empty schemas. Available question/settings values establish only those samples, not answer/renewal logic or unseen JSON/BOOLEAN setting grammars.
 7. **Workflow/status rules — HIGH R07/R08/R24; MEDIUM R06/R21/R23.** Actual statuses do not authorize new transitions or settle absent honorary/renewal/overdue/expiry branches.
 8. **Snapshots — HIGH R13; MEDIUM R14/R20.** Retain discrepant names/phone values and matching type/fee/review snapshots independently. Agreement today does not justify deriving or dropping historical fields.
@@ -893,7 +1044,7 @@ No decision here authorizes code/schema changes. These gates summarize the issue
 11. **References/polymorphism — HIGH R10; MEDIUM R11/R26.** Reference formats/uniqueness are checked; generation safety and settings conflict remain. Preserve two misdiscriminated audit targets and two blank notification targets without auto-repair.
 12. **Scope/provenance — LOW R27.** Sibling path and unchanged source commit are verified. No deployment/export alignment attestation was supplied; phase-status documentation is not updated by this task.
 
-The supplied export reconciliation is complete below. Canonical Prisma design may now begin using the approved representations. Before finalizing affected constraints or executing imports, address the remaining findings and approve any stricter constraints/business mappings; do not treat this audit as approval of the draft proposals. Retain restricted originals for transformations and unknown values. This draft selects **no destructive drops**, implements **no models**, and creates **no migrations**.
+The supplied export reconciliation is complete below. Canonical Prisma design may now begin using the approved representations. The final approved money, referential-action and uniqueness rules now govern implementation. Before executing imports or adding further constraints, address the remaining applicable findings; the explicit user-approved canonical decisions govern schema implementation, while later business repairs remain unapproved. Retain restricted originals for transformations and unknown values. This draft selects **no destructive drops**, implements **no models**, and creates **no migrations**.
 
 ## Export Data Audit
 
@@ -1019,13 +1170,13 @@ There are **no unexplained dangling non-User conventional target IDs**. All 11 d
 
 - AuditLog: **14/16** targets resolve to the declared entity. Rows **2 and 9** are PAYMENT_SUBMITTED with entityType=Payment, but both IDs resolve to MembershipApplication instead; no Payment has either ID. This exactly matches `src/pages/member/PaymentPage.jsx:106-112`. Preserve the original discriminator and raw legacy ID. An application link may be added only through an approved, auditable correction (R10 HIGH).
 - Notification: **6/8** related targets resolve to MembershipApplication. Rows **1 and 4** declare Membership but have blank relatedEntityId; they are missing optional targets, not dangling nonempty IDs. Do not backfill from current membership or user, particularly because the user has two memberships (R26 MEDIUM).
-- MembershipApplication rows **1 and 2** belong to the same user and are both ACTIVE. Membership rows **1 and 2** belong to that same user, are both ACTIVE ASSOCIATE, have different application IDs/reference numbers and overlapping start/expiry periods. Two separate VERIFIED payments each reference one application. Preserve all records; no merge or unique(userId) for these entities (R09/R15 HIGH).
+- MembershipApplication rows **1 and 2** belong to the same user and are both ACTIVE. Membership rows **1 and 2** belong to that same user, are both ACTIVE ASSOCIATE, have different application IDs/reference numbers and overlapping start/expiry periods. Two separate VERIFIED payments each reference one application. Preserve all records; no merge or unique(userId) for these entities (R09 HIGH; R15 constraints resolved).
 - Payment.membershipId is blank **2/2**, despite both referenced applications having a membership. Application linkage supports comparison, not automatic backfill or a new mandatory FK.
-- No duplicate nonempty applicationNumber, membershipNumber, paymentReference, transactionReference, eventNumber, slug, MembershipType.code, EligibilityQuestion.code, SystemSetting.settingKey, MemberProfile.userId, Membership.applicationId or Payment.applicationId occurs. No duplicate (applicationId, documentType) occurs in 11 documents. Sample uniqueness is not approval for unique constraints or on-delete policy (R15 HIGH).
+- No duplicate nonempty applicationNumber, membershipNumber, paymentReference, transactionReference, eventNumber, slug, MembershipType.code, EligibilityQuestion.code, SystemSetting.settingKey, MemberProfile.userId, Membership.applicationId or Payment.applicationId occurs. No duplicate (applicationId, documentType) occurs in 11 documents. The export observation alone did not approve constraints; the subsequent user-approved uniqueness allowlist and referential actions now apply (R15 resolved).
 
 ### Per-column data and nullability profile
 
-The following covers **every exported column** and every declared field of the four empty entities. “Nonblank / blank” counts raw CSV cells, not SQL nulls. `N/A` means no header and no records, not a missing populated-schema column. Schema required/default/enum declarations remain in the entity tables; **no declared required field is blank on any existing record**. There are no whitespace-only cells and no literal null/undefined/none/NaN/n/a markers. Blank CSV cells cannot reconstruct the original JSON distinction; the approved target rule maps optional blanks/null/omissions to NULL (R18 resolved).
+The following covers **every exported column** and every declared field of the four empty entities. “Nonblank / blank” counts raw CSV cells, not SQL nulls. `N/A` means no header and no records, not a missing populated-schema column. Schema required/default/enum declarations remain in the entity tables; approved nullable actor overrides govern canonical fields; **no declared required field is blank on any existing record**. There are no whitespace-only cells and no literal null/undefined/none/NaN/n/a markers. Blank CSV cells cannot reconstruct the original JSON distinction; the approved target rule maps optional blanks/null/omissions to NULL (R18 resolved).
 
 #### Announcement export columns
 
@@ -1484,7 +1635,7 @@ Free strings remain free strings even when the sample resembles an enum:
 | `Event.registrationDeadline <= startDate` | 1 | 0 |
 
 - **Booleans:** every populated schema boolean and is_sample uses exact lowercase true/false; no numeric or mixed-case boolean representations. All is_sample values are false. Notification isRead agrees with presence of readAt in 8/8 rows.
-- **Numbers:** all populated schema numbers parse as finite decimals, have no fractional digits, negative signs representing negative values or scientific notation. Per-field ranges appear above. File sizes are 2,371–2,648,295 bytes. Existing values can be parsed without rounding; they cannot settle future bounds, integer-only semantics or monetary scale (R19 HIGH).
+- **Numbers:** all populated schema numbers parse as finite decimals, have no fractional digits, negative signs representing negative values or scientific notation. Per-field ranges appear above. File sizes are 2,371–2,648,295 bytes. Existing values fit approved Decimal(12,2) without rounding. Future validation bounds and integer-only semantics remain R19 MEDIUM; monetary scale is resolved.
 - **Defaults:** the only blank cells in populated schema-defaulted columns are User.accountStatus (3/3), despite schema default ACTIVE. Other observed defaults/nondefaults are populated, but CSV does not identify whether the platform, writer or seed supplied them. Do not apply defaults retrospectively.
 - **Question options:** one SELECT row has valid JSON text representing [ORDINARY, LIFETIME, ASSOCIATE]; other five options are blank. Keep string storage unless a lossless conversion is explicitly approved. BOOLEAN-rule strings are text `true`, not boolean-typed columns. Both audit oldValues/newValues are blank in all 16 records, so no real historical JSON shape is verified.
 - **Settings:** seven STRING and two NUMBER rows. Both numeric values parse: MAX_DOCUMENT_SIZE_MB=5 and APPLICATION_EXPIRY_DAYS=90. MEMBERSHIP_NUMBER_PREFIX=MYAIS agrees with code, but APPLICATION_NUMBER_PREFIX=APP differs from hardcoded MYAIS-APP. No source consumer applies either setting to reference generation. No BOOLEAN or JSON setting values are exported; neither grammar nor expiry behavior can be silently inferred (R11/R16/R26).
@@ -1584,21 +1735,30 @@ These are resolved factual questions, **not approval of the remaining business r
 11. Question options and the two numeric settings parse; this does not establish grammar for unobserved values or runtime enforcement.
 12. No observed reference-number collision or non-User dangling conventional FK exists; this does not authorize new uniqueness constraints.
 
-### Remaining severity counts and canonical-design readiness
+### Remaining severity counts and Prisma implementation readiness
 
-The reassessment covers all R01–R27 groups. **R01, R12 and R18 are RESOLVED** by the approved decisions above and excluded from open counts.
+Final reassessment after the 2026-09-15 approvals:
 
 | BLOCKER | HIGH | MEDIUM | LOW | Total open groups | Resolved groups |
 | --- | --- | --- | --- | --- | --- |
-| 0 | 14 | 9 | 1 | 24 | 3 |
+| 0 | 12 | 10 | 1 | 23 | 4 |
 
-Remaining groups retain their severities because these approvals do not settle their separate findings:
+R01, R12, R15 and R18 are resolved. R19 monetary schema choices are resolved; only future numeric validation remains, reassessed as MEDIUM.
 
-- **HIGH (14):** R03, R04, R05, R07, R08, R09, R10, R13, R15, R17, R19, R22, R24, R25. These concern permissions, workflow/payment integrity, duplicate memberships/cardinality, polymorphic history, identity snapshots, numeric precision, files/access and platform/import contracts. R25 now explicitly tracks source-zone interpretation before offset-less import; this is an existing platform-contract group, not a new issue.
-- **MEDIUM (9):** R02, R06, R11, R14, R16, R20, R21, R23, R26. Unknown route aliases, missing workflow paths, numbering, mutable snapshots, empty/unused concepts and free-string/JSON semantics are unaffected.
-- **LOW (1):** R27, phase/provenance documentation follow-up.
+**Remaining schema-impacting HIGH findings requiring a decision before implementing the approved mapping: none.**
 
-**Canonical Prisma design can now begin.** The approved representations allow design without guessing canonical roles, Event creator cardinality, timestamp/date/clock types or optional blank handling. Remaining findings must be addressed when finalizing their affected constraints, importing data or implementing workflows; this is not approval to silently repair historical data or invent business rules. Preserve all empty entity schemas and both disabled historical human identities. No Prisma models, migrations or application code are created by this documentation update.
+The 12 remaining HIGH groups do not require guessing additional schema behavior:
+- R03/R04/R05: authorization and audit protection belong to backend enforcement; the approved delete policy does not grant deletion permission.
+- R07/R08/R24: workflow stages, honorary activation and expiry/role behavior remain implementation questions; mapped independent statuses/dates remain stored.
+- R09: preserve both memberships/applications and payment records; no unique userId. Retry/idempotency and reconciliation remain later work.
+- R10: preserve the misdiscriminated historical polymorphic references as non-FK strings; no repair is performed.
+- R13: keep separate mapped identity/name/phone fields; no authoritative merge is required for schema creation.
+- R17/R22: retain mapped URL/metadata fields; access, object verification and protected storage remain later work.
+- R25: nullable email uniqueness is approved. Raw platform status/principal metadata remains separately mapped. Source-zone interpretation, credential/provider portability and auth semantics remain import/auth follow-ups.
+
+MEDIUM groups are R02, R06, R11, R14, R16, R19, R20, R21, R23, R26; LOW remains R27. No new constraints, enum aliases, business repairs or imports are implied.
+
+**Prisma implementation is now approved** for all 18 mapped entities using the cumulative approved decisions, with snapshot/provenance preservation and only the approved uniqueness constraints. This turn updates documentation only; it does not create Prisma, migrations, seed data, API/auth/UI code or CSV imports.
 
 ### Audit validation and repository boundaries
 
@@ -1608,4 +1768,8 @@ SHA-256 comparison of the 205 baseline source/private/project files found all ar
 
 ### Approved-decision update validation
 
-R01/R12/R18 are marked resolved in the register, field mappings and readiness summary. Canonical role members exclude USER/ADMIN; legacyRole is nullable. Event creator FK/provenance and timezone mappings are explicit. System timestamp field mappings use UTC timestamptz, business dates remain date, local Event clocks remain separate, and optional blanks map to NULL. All remaining issue groups were reassessed; 24 remain open. Historical export observations and counts are unchanged. This update modifies only this document.
+R01/R12/R18 are marked resolved in the register, field mappings and readiness summary. Canonical role members exclude USER/ADMIN; legacyRole is nullable. Event creator FK/provenance and timezone mappings are explicit. System timestamp field mappings use UTC timestamptz, business dates remain date, local Event clocks remain separate, and optional blanks map to NULL. At that earlier approval stage, 24 groups remained open; the final 2026-09-15 reassessment above supersedes that count. Historical export observations and counts are unchanged. This update modifies only this document.
+
+### Final schema decision validation
+
+The final approval covers exactly eight Decimal(12,2) fields, ten nullable SetNull actor relationships, the remaining 24 Restrict relationships, eleven named single-column unique keys plus per-entity legacyBase44Id, and eleven explicit uniqueness exclusions. The three source-required actor fields have nullable canonical mappings. Polymorphic references remain non-FKs. Earlier export counts and Base44 schema declarations are unchanged; current approvals supersede historical target warnings. Only this document is changed.
