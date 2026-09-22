@@ -232,6 +232,7 @@ model User {
   accountStatus        UserAccountStatus? @default(ACTIVE)
   lastLoginAt          DateTime?          @db.Timestamptz(3)
   email                String?            @unique
+  supabaseAuthUserId   String?            @unique @db.Uuid
   legacyFullName       String?
   fullName             String?
   legacyRole           String?

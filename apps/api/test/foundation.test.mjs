@@ -6,19 +6,49 @@ import { AppModule } from '../dist/app.module.js';
 import { PRISMA_CLIENT, PrismaService } from '../dist/database/prisma.service.js';
 import { HealthController } from '../dist/health/health.controller.js';
 import { validateEnvironment } from '../dist/config/environment.js';
+import { canAccessProtectedApi } from '../dist/auth/account-access.js';
+
+const supabaseUrl = 'https://example.supabase.co';
 
 test('DATABASE_URL is mandatory; DIRECT_URL cannot substitute for it', () => {
   for (const env of [{}, { DATABASE_URL: '' }, { DATABASE_URL: ' ' }, { DIRECT_URL: 'postgresql://private:secret@private/db' }])
     assert.throws(() => validateEnvironment(env), { message: 'DATABASE_URL is required' });
   const value = 'postgresql://runtime:synthetic@localhost/runtime';
-  assert.equal(validateEnvironment({ DATABASE_URL: value, DIRECT_URL: 'ignored' }).databaseUrl, value);
+  assert.equal(validateEnvironment({ DATABASE_URL: value, DIRECT_URL: 'ignored', SUPABASE_URL: supabaseUrl }).databaseUrl, value);
 });
 
 test('invalid configuration errors do not disclose values', () => {
   assert.throws(() => validateEnvironment({ DATABASE_URL: 'https://private:secret@private/db' }),
     { message: 'DATABASE_URL must be a valid PostgreSQL connection URL' });
-  assert.throws(() => validateEnvironment({ DATABASE_URL: 'postgresql://localhost/db', PORT: 'secret' }),
+  assert.throws(() => validateEnvironment({ DATABASE_URL: 'postgresql://localhost/db', SUPABASE_URL: supabaseUrl, PORT: 'secret' }),
     { message: 'PORT must be an integer between 1 and 65535' });
+});
+
+test('Supabase settings derive issuer and JWKS from one validated origin', () => {
+  const databaseUrl = 'postgresql://localhost/myais';
+  assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl }),
+    { message: 'SUPABASE_URL is required' });
+  for (const invalid of ['https://user:secret@example.supabase.co', 'https://example.supabase.co/other',
+    'https://example.supabase.co?secret=private', 'http://example.supabase.co']) {
+    assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: invalid }),
+      { message: 'SUPABASE_URL must be a valid Supabase origin URL' });
+  }
+  const config = validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: `${supabaseUrl}/` });
+  assert.equal(config.supabaseUrl, supabaseUrl);
+  assert.equal(config.supabaseJwtAudience, 'authenticated');
+  assert.equal(config.supabaseJwtIssuer, `${supabaseUrl}/auth/v1`);
+  assert.equal(config.supabaseJwksUrl, `${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  assert.equal(validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: supabaseUrl,
+    SUPABASE_JWT_AUDIENCE: 'custom-audience' }).supabaseJwtAudience, 'custom-audience');
+  assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: supabaseUrl,
+    SUPABASE_JWT_AUDIENCE: ' ' }),
+  { message: 'SUPABASE_JWT_AUDIENCE must be a non-empty value' });
+});
+
+test('protected account status permits ACTIVE only', () => {
+  assert.equal(canAccessProtectedApi('ACTIVE'), true);
+  for (const status of ['DISABLED', 'SUSPENDED', null, undefined])
+    assert.equal(canAccessProtectedApi(status), false);
 });
 
 test('Nest module shares one client, runs SELECT 1, and disconnects on shutdown', async () => {
