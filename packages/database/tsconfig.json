@@ -4,11 +4,13 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": [
       "node"
     ]
   },
   "include": [
-    "prisma.config.ts"
+    "prisma.config.ts",
+    "src/migration/base44/**/*.ts"
   ]
 }
