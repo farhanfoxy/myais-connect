@@ -11,8 +11,10 @@ Client generation/build does not connect to PostgreSQL or apply migrations.
 
 Set `SUPABASE_URL` to the project's origin. `SUPABASE_JWT_AUDIENCE` defaults to `authenticated`.
 The API derives the issuer as `${SUPABASE_URL}/auth/v1` and JWKS URL as
-`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. No secret or service-role key is needed for
-this identity foundation. JWT validation and guards belong to the next phase.
+`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. No secret or service-role key is needed.
+The API verifies bearer access tokens against asymmetric JWKS signing keys. Projects still
+using only legacy symmetric JWT signing must rotate to an asymmetric key before this verifier
+can accept their access tokens.
 
 Client configuration names for later web/mobile work are
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`;
@@ -20,16 +22,18 @@ their Supabase URL and API base URL must also be configured. Clients must use Ne
 MyAIS application data and must not access application tables directly.
 
 Only canonical users with `accountStatus = ACTIVE` may access protected API functionality.
-`DISABLED`, `SUSPENDED`, and NULL status are denied. This invariant is represented by
-`canAccessProtectedApi`; the guard that enforces it is still to be built.
+`DISABLED`, `SUSPENDED`, and NULL status are denied by `ActiveAccountGuard`. `RolesGuard`
+reads canonical roles only. `/auth/me` returns a fixed set of client-safe fields; `/health`
+remains public.
 
-For the next linking phase: a match on `supabaseAuthUserId` wins. Otherwise, link by
-normalized authenticated email only if exactly one canonical User matches, that user's
-`accountStatus` is ACTIVE, and `supabaseAuthUserId` is NULL. Never auto-link a DISABLED
-or SUSPENDED account. Otherwise provision a new APPLICANT + ACTIVE User. Role and status
-must come from the server, never from the client. The two historical disabled users stay
-unlinked (`supabaseAuthUserId = NULL`) and retain their disabled status and empty identity
-fields; this phase does not update existing rows.
+A match on `supabaseAuthUserId` wins. Otherwise, exactly one canonical User with the
+normalized authenticated email may be linked if its status is ACTIVE and its auth ID is
+NULL. Ambiguous, disabled, suspended, or null-status matches are refused. With no match,
+the API provisions APPLICANT + ACTIVE using the verified token identity. Link/create is
+serialized per normalized email and retries uniqueness/serialization races. Client role
+and status values are ignored. The two historical disabled users cannot be linked.
+Enable Supabase email confirmation for sign-up before allowing migration-era email linking;
+a signed email claim alone does not prove mailbox ownership if confirmation is disabled.
 
 `GET /health` performs `SELECT 1` using the shared Prisma client. It returns HTTP 200 with
 `{"api":"up","database":"up","timestamp":"<UTC ISO timestamp>"}` or HTTP 503 with

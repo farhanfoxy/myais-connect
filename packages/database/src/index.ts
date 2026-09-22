@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 
-export { PrismaClient, Prisma, UserAccountStatus } from '../generated/prisma/client.js';
+export { PrismaClient, Prisma, UserAccountStatus, UserRole } from '../generated/prisma/client.js';
 
 // Each backend owns one client and disconnects it during shutdown.
 export function createPrismaClient(databaseUrl: string): PrismaClient {

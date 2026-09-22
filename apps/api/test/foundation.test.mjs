@@ -7,6 +7,7 @@ import { PRISMA_CLIENT, PrismaService } from '../dist/database/prisma.service.js
 import { HealthController } from '../dist/health/health.controller.js';
 import { validateEnvironment } from '../dist/config/environment.js';
 import { canAccessProtectedApi } from '../dist/auth/account-access.js';
+import { SupabaseJwtVerifier } from '../dist/auth/supabase-jwt.verifier.js';
 
 const supabaseUrl = 'https://example.supabase.co';
 
@@ -63,7 +64,8 @@ test('Nest module shares one client, runs SELECT 1, and disconnects on shutdown'
     $disconnect: async () => { disconnects++; },
   };
   const module = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(PRISMA_CLIENT).useValue(client).compile();
+    .overrideProvider(PRISMA_CLIENT).useValue(client)
+    .overrideProvider(SupabaseJwtVerifier).useValue({ verifyAccessToken: async () => null }).compile();
   await module.init();
   try {
     assert.equal(module.get(PrismaService).client, client);
@@ -83,7 +85,7 @@ test('health failure is a safe 503 and a later probe can recover', async () => {
     .overrideProvider(PRISMA_CLIENT).useValue({
       $queryRaw: async () => { if (down) throw new Error('postgresql://private:secret@private/db'); return []; },
       $disconnect: async () => {},
-    }).compile();
+    }).overrideProvider(SupabaseJwtVerifier).useValue({ verifyAccessToken: async () => null }).compile();
   try {
     const controller = module.get(HealthController);
     await assert.rejects(controller.getHealth(), error => {
