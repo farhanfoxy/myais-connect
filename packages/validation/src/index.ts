@@ -136,3 +136,8 @@ export const reviewerRequestInformationSchema = z.object({
 export const reviewerRejectSchema = z.object({
   remarks: z.string().refine(value => value.trim().length > 0, 'Remarks are required'),
 }).strict();
+
+export const reviewerApproveSchema = z.object({
+  approvedMembershipTypeId: z.string().uuid('Invalid membership type ID'),
+  remarks: z.string().optional().default(''),
+}).strict();

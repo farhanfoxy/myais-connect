@@ -8,7 +8,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Prisma } from '@myais/database';
+import { Prisma as PrismaRuntime, UserAccountStatus, UserRole } from '@myais/database';
 import {
+  reviewerApproveSchema,
   reviewerApplicationQueueSchema,
   reviewerOptionalRemarksSchema,
   reviewerRejectSchema,
@@ -23,8 +25,26 @@ import {
   PrivateStorageUnavailableError,
   PrivateUploadNotFoundError,
 } from '../storage/private-storage.js';
+import { myaisBusinessYear } from '../membership-applications/membership-applications.service.js';
 
 const downloadTtlSeconds = 5 * 60;
+const myaisBusinessTimeZone = 'Asia/Kuala_Lumpur';
+const businessDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: myaisBusinessTimeZone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function myaisBusinessDate(value: Date): string {
+  const parts = businessDateFormatter.formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(valuePart => valuePart.type === type)?.value;
+  const year = part('year');
+  const month = part('month');
+  const day = part('day');
+  if (!year || !month || !day) throw new Error('Unable to derive MyAIS business date');
+  return `${year}-${month}-${day}`;
+}
 
 const queueSelect = {
   id: true,
@@ -231,6 +251,148 @@ export class ReviewerApplicationsService {
     });
   }
 
+  async approve(reviewer: CanonicalPrincipal, applicationIdInput: string, input: unknown) {
+    if (reviewer.accountStatus !== UserAccountStatus.ACTIVE ||
+      (reviewer.role !== UserRole.PRESIDENT && reviewer.role !== UserRole.SYSTEM_ADMINISTRATOR)) {
+      throw new ForbiddenException('Insufficient role');
+    }
+    const parsed = reviewerApproveSchema.safeParse(input);
+    if (!parsed.success) throw new BadRequestException('Invalid approval input');
+    const applicationId = this.id(applicationIdInput, 'application');
+    const { approvedMembershipTypeId, remarks } = parsed.data;
+
+    return this.prisma.client.$transaction(async transaction => {
+      await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${applicationId}, 2))::text AS "lock"`;
+      const application = await transaction.membershipApplication.findUnique({
+        where: { id: applicationId },
+        select: {
+          id: true,
+          userId: true,
+          applicationNumber: true,
+          status: true,
+          latestReviewerRemarks: true,
+        },
+      });
+      if (!application) throw new NotFoundException('Application not found');
+      if (application.userId === reviewer.id) {
+        throw new ForbiddenException('Reviewers cannot approve their own application');
+      }
+      if (application.status !== 'RECOMMENDED_FOR_APPROVAL') {
+        throw new ConflictException('Application is not in a valid state for approval');
+      }
+
+      const approvedType = await transaction.membershipType.findUnique({
+        where: { id: approvedMembershipTypeId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          entranceFee: true,
+          membershipFee: true,
+          votingRights: true,
+          active: true,
+        },
+      });
+      if (!approvedType) throw new BadRequestException('Approved membership type does not exist');
+      if (approvedType.active !== true) throw new BadRequestException('Approved membership type is inactive');
+
+      const approvedAt = new Date();
+      const year = myaisBusinessYear(approvedAt);
+      const paymentReference = await this.nextPaymentReference(transaction, year);
+      const honorary = approvedType.code === 'HONORARY';
+      const membershipNumber = honorary ? await this.nextMembershipNumber(transaction, year) : null;
+      const newStatus = honorary ? 'ACTIVE' : 'APPROVED_PENDING_PAYMENT';
+      const reviewerName = this.reviewerName(reviewer);
+      const entranceFee = approvedType.entranceFee ?? new PrismaRuntime.Decimal(0);
+      const membershipFee = approvedType.membershipFee ?? new PrismaRuntime.Decimal(0);
+
+      await transaction.membershipApplication.update({
+        where: { id: applicationId },
+        data: {
+          status: newStatus,
+          approvedMembershipType: { connect: { id: approvedType.id } },
+          approvedMembershipTypeCode: approvedType.code,
+          approvedAt,
+          approvedByUser: { connect: { id: reviewer.id } },
+          reviewedByUser: { connect: { id: reviewer.id } },
+          reviewedAt: approvedAt,
+          latestReviewerRemarks: remarks || application.latestReviewerRemarks,
+        },
+      });
+      await transaction.payment.create({
+        data: {
+          paymentReference,
+          userId: application.userId,
+          applicationId,
+          paymentType: approvedType.code === 'LIFETIME'
+            ? 'ENTRANCE_AND_LIFETIME'
+            : honorary ? 'OTHER' : 'ENTRANCE_AND_ANNUAL',
+          entranceFee,
+          membershipFee,
+          totalAmount: entranceFee.plus(membershipFee),
+          currency: 'MYR',
+          status: honorary ? 'VERIFIED' : 'NOT_SUBMITTED',
+        },
+      });
+      if (honorary) {
+        await transaction.membership.create({
+          data: {
+            membershipNumber,
+            userId: application.userId,
+            applicationId,
+            membershipTypeId: approvedType.id,
+            membershipTypeCode: approvedType.code,
+            membershipTypeName: approvedType.name,
+            startDate: new Date(`${myaisBusinessDate(approvedAt)}T00:00:00.000Z`),
+            status: 'ACTIVE',
+            votingEligible: approvedType.votingRights || false,
+            activatedAt: approvedAt,
+          },
+        });
+      }
+      await transaction.notification.create({
+        data: {
+          userId: application.userId,
+          title: 'Application Approved!',
+          message: `Your membership application has been approved as ${approvedType.name}. ${honorary
+            ? 'Your membership is now active.'
+            : 'Please submit your payment to activate your membership.'}`,
+          type: 'APPLICATION',
+          relatedEntityType: 'MembershipApplication',
+          actionUrl: honorary ? '/my-card' : '/my-application/payment',
+        },
+      });
+      await transaction.applicationReview.create({
+        data: {
+          applicationId,
+          reviewerUserId: reviewer.id,
+          reviewerName,
+          decision: 'APPROVE',
+          remarks,
+          previousStatus: application.status,
+          newStatus,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorUserId: reviewer.id,
+          actorName: reviewerName,
+          action: 'APPLICATION_APPROVE',
+          entityType: 'MembershipApplication',
+          description: `APPROVE on ${application.applicationNumber}. Remarks: ${remarks}`,
+        },
+      });
+      return {
+        id: applicationId,
+        status: newStatus,
+        approvedMembershipType: { id: approvedType.id, code: approvedType.code, name: approvedType.name },
+        approvedAt: approvedAt.toISOString(),
+        paymentReference,
+        membershipNumber,
+      };
+    });
+  }
+
   private async transition(
     reviewer: ReviewPrincipal,
     applicationIdInput: string,
@@ -320,6 +482,40 @@ export class ReviewerApplicationsService {
       }
       return { id: applicationId, status: action.newStatus, reviewedAt: reviewedAt.toISOString() };
     });
+  }
+
+  private async nextPaymentReference(transaction: Prisma.TransactionClient, year: number): Promise<string> {
+    const prefix = `MYAIS-PAY-${year}-`;
+    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${prefix}, 4))::text AS "lock"`;
+    const records = await transaction.payment.findMany({
+      where: { paymentReference: { startsWith: prefix } },
+      select: { paymentReference: true },
+    });
+    return this.nextReference(prefix, records.map(record => record.paymentReference),
+      `^MYAIS-PAY-${year}-(\\d{6})$`, 'Payment');
+  }
+
+  private async nextMembershipNumber(transaction: Prisma.TransactionClient, year: number): Promise<string> {
+    const prefix = `MYAIS-${year}-`;
+    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${prefix}, 5))::text AS "lock"`;
+    const records = await transaction.membership.findMany({
+      where: { membershipNumber: { startsWith: prefix } },
+      select: { membershipNumber: true },
+    });
+    return this.nextReference(prefix, records.map(record => record.membershipNumber),
+      `^MYAIS-${year}-(\\d{6})$`, 'Membership');
+  }
+
+  private nextReference(prefix: string, values: (string | null)[], pattern: string, label: string): string {
+    const format = new RegExp(pattern);
+    let highestSuffix = 0;
+    for (const value of values) {
+      const match = value?.match(format);
+      if (match?.[1]) highestSuffix = Math.max(highestSuffix, Number(match[1]));
+    }
+    const nextSuffix = highestSuffix + 1;
+    if (nextSuffix > 999999) throw new ConflictException(`${label} number sequence exhausted`);
+    return `${prefix}${String(nextSuffix).padStart(6, '0')}`;
   }
 
   private safeQueueRecord(record: QueueRecord) {

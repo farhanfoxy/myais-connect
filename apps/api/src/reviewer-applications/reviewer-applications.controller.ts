@@ -55,6 +55,12 @@ export class ReviewerApplicationsController {
     return this.applications.recommendApproval(reviewer, id, input);
   }
 
+  @Post(':id/approve')
+  @Roles(UserRole.PRESIDENT, UserRole.SYSTEM_ADMINISTRATOR)
+  approve(@CurrentUser() reviewer: CanonicalPrincipal, @Param('id') id: string, @Body() input: unknown) {
+    return this.applications.approve(reviewer, id, input);
+  }
+
   @Post(':id/reject')
   reject(@CurrentUser() reviewer: CanonicalPrincipal, @Param('id') id: string, @Body() input: unknown) {
     return this.applications.reject(reviewer, id, input);
