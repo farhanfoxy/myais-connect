@@ -567,6 +567,7 @@ model Payment {
   bankName             String?
   transactionReference String?
   receiptUrl           String?
+  receiptObjectKey     String?            @unique
   status               PaymentStatus?     @default(NOT_SUBMITTED)
   paidAt               DateTime?          @db.Timestamptz(3)
   submittedAt          DateTime?          @db.Timestamptz(3)
