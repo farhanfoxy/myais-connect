@@ -6,6 +6,8 @@ import { MembershipTypesModule } from './membership-types/membership-types.modul
 import { ProfileModule } from './profile/profile.module.js';
 import { EligibilityModule } from './eligibility/eligibility.module.js';
 import { MembershipApplicationsModule } from './membership-applications/membership-applications.module.js';
+import { ApplicationDocumentsModule } from './application-documents/application-documents.module.js';
+import { InformationRequestsModule } from './information-requests/information-requests.module.js';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { MembershipApplicationsModule } from './membership-applications/membersh
     ProfileModule,
     EligibilityModule,
     MembershipApplicationsModule,
+    ApplicationDocumentsModule,
+    InformationRequestsModule,
   ],
   controllers: [HealthController],
 })

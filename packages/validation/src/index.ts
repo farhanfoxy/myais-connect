@@ -66,3 +66,36 @@ export const uuidPathSchema = z.string().uuid('Invalid application ID');
 
 export type EligibilityOverrides = z.infer<typeof eligibilityOverridesSchema>;
 export type DraftMembershipApplicationInput = z.infer<typeof draftMembershipApplicationInputSchema>;
+
+const privateUploadMetadataSchema = z.object({
+  originalFileName: z.string().refine(value => value.trim().length > 0, 'Required'),
+  mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024, 'Maximum 5MB allowed'),
+}).strict();
+
+export const applicationDocumentUploadSchema = privateUploadMetadataSchema.extend({
+  documentType: z.enum([
+    'IDENTIFICATION',
+    'AIS_MEMBERSHIP_PROOF',
+    'PROFILE_PHOTO',
+    'ADDITIONAL_SUPPORTING_DOCUMENT',
+  ]),
+}).strict();
+
+export const finalizePrivateUploadSchema = z.object({
+  uploadToken: z.string().min(1),
+}).strict();
+
+export const submitMembershipApplicationSchema = z.object({
+  declarationAccepted: z.literal(true),
+}).strict();
+
+export const informationRequestAttachmentUploadSchema = privateUploadMetadataSchema;
+
+export const informationRequestResponseSchema = z.object({
+  response: z.string().refine(value => value.trim().length > 0, 'Response is required'),
+  attachmentUploadToken: z.string().min(1).optional(),
+}).strict();
+
+export type ApplicationDocumentUploadInput = z.infer<typeof applicationDocumentUploadSchema>;
+export type InformationRequestAttachmentUploadInput = z.infer<typeof informationRequestAttachmentUploadSchema>;

@@ -25,6 +25,11 @@ export class MembershipApplicationsController {
     return this.applications.currentOwn(user.id);
   }
 
+  @Post(':id/submit')
+  submitOwn(@CurrentUser() user: CanonicalPrincipal, @Param('id') id: string, @Body() input: unknown) {
+    return this.applications.submitOwn(user.id, id, input);
+  }
+
   @Get(':id')
   detailOwn(@CurrentUser() user: CanonicalPrincipal, @Param('id') id: string) {
     return this.applications.detailOwn(user.id, id);
