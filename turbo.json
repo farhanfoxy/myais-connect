@@ -3,7 +3,7 @@
   "tasks": {
     "@myais/database#build": {
       "dependsOn": ["^build"],
-      "outputs": [],
+      "outputs": ["dist/**", "generated/**"],
       "env": ["DATABASE_URL"]
     },
     "build": {
@@ -20,6 +20,7 @@
       ]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,
       "env": [

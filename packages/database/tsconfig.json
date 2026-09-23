@@ -11,6 +11,7 @@
   },
   "include": [
     "prisma.config.ts",
+    "src/index.ts",
     "src/migration/base44/**/*.ts"
   ]
 }
