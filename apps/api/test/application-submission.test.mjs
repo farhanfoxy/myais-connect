@@ -2,7 +2,10 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EligibilityService } from '../dist/eligibility/eligibility.service.js';
-import { MembershipApplicationsService } from '../dist/membership-applications/membership-applications.service.js';
+import {
+  MembershipApplicationsService,
+  myaisBusinessYear,
+} from '../dist/membership-applications/membership-applications.service.js';
 
 const ownId = '111e4567-e89b-42d3-a456-426614174000';
 const otherId = '111e4567-e89b-42d3-a456-426614174001';
@@ -39,7 +42,7 @@ function documents(appId = applicationId, userId = ownId) {
 }
 
 function submissionDatabase(options = {}) {
-  const currentYear = new Date().getUTCFullYear();
+  const currentYear = myaisBusinessYear(new Date());
   const state = {
     applications: options.applications ?? [application()],
     profiles: options.profiles ?? [profile()],
@@ -121,7 +124,7 @@ function submissionDatabase(options = {}) {
 test('complete DRAFT submits atomically with legacy audit/notification wording and next sequence', async () => {
   const database = submissionDatabase({ existingSuffix: 7 });
   const result = await database.service.submitOwn(ownId, applicationId, { declarationAccepted: true });
-  const year = new Date().getUTCFullYear();
+  const year = myaisBusinessYear(new Date());
   assert.equal(result.status, 'SUBMITTED');
   assert.equal(result.currentStep, 4);
   assert.equal(result.applicationNumber, `MYAIS-APP-${year}-000008`);
@@ -193,6 +196,11 @@ test('concurrent submissions allocate distinct current-year numbers', async () =
   ]);
   assert.equal(new Set(results.map(result => result.applicationNumber)).size, 2);
   for (const result of results) assert.match(result.applicationNumber, /^MYAIS-APP-\d{4}-\d{6}$/);
+});
+
+test('application-number year uses Asia/Kuala_Lumpur across the UTC New Year boundary', () => {
+  assert.equal(myaisBusinessYear(new Date('2025-12-31T15:59:59.999Z')), 2025);
+  assert.equal(myaisBusinessYear(new Date('2025-12-31T16:00:00.000Z')), 2026);
 });
 
 test('transaction failure rolls application, number, audit, and notification back to DRAFT', async () => {

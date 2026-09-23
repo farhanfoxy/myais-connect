@@ -10,6 +10,17 @@ import { PrismaService } from '../database/prisma.service.js';
 import { EligibilityService } from '../eligibility/eligibility.service.js';
 
 const terminalStatuses = ['ACTIVE', 'REJECTED', 'EXPIRED', 'TERMINATED'] as const;
+const myaisBusinessTimeZone = 'Asia/Kuala_Lumpur';
+const businessYearFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: myaisBusinessTimeZone,
+  year: 'numeric',
+});
+
+export function myaisBusinessYear(value: Date): number {
+  const year = businessYearFormatter.formatToParts(value).find(part => part.type === 'year')?.value;
+  if (!year) throw new Error('Unable to derive MyAIS business year');
+  return Number(year);
+}
 
 const applicationSelect = {
   id: true,
@@ -296,7 +307,7 @@ export class MembershipApplicationsService {
       }
 
       const submittedAt = new Date();
-      const year = submittedAt.getUTCFullYear();
+      const year = myaisBusinessYear(submittedAt);
       const prefix = `MYAIS-APP-${year}-`;
       await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${prefix}, 3))::text AS "lock"`;
       const existingNumbers = await transaction.membershipApplication.findMany({
