@@ -15,6 +15,6 @@ import { SupabaseJwtVerifier } from './supabase-jwt.verifier.js';
     { provide: SupabaseJwtVerifier, useFactory: () => new SupabaseJwtVerifier(loadEnvironment()) },
     CanonicalUserService, SupabaseJwtGuard, ActiveAccountGuard, RolesGuard,
   ],
-  exports: [SupabaseJwtGuard, ActiveAccountGuard, RolesGuard, CanonicalUserService],
+  exports: [SupabaseJwtVerifier, SupabaseJwtGuard, ActiveAccountGuard, RolesGuard, CanonicalUserService],
 })
 export class AuthModule {}
