@@ -47,3 +47,22 @@ export const memberProfileInputSchema = z.object({
 });
 
 export type MemberProfileInput = z.infer<typeof memberProfileInputSchema>;
+
+export const eligibilityOverridesSchema = z.object({
+  malaysianCitizen: z.boolean().optional(),
+  dateOfBirth: calendarDate.optional(),
+  residingInMalaysia: z.boolean().optional(),
+  aisMember: z.boolean().optional(),
+  aisExpiry: calendarDate.optional(),
+  aisNumber: z.string().optional(),
+}).strict();
+
+export const draftMembershipApplicationInputSchema = z.object({
+  requestedMembershipTypeCode: z.enum(['ORDINARY', 'LIFETIME', 'ASSOCIATE', 'HONORARY']),
+  eligibility: eligibilityOverridesSchema.optional(),
+}).strict();
+
+export const uuidPathSchema = z.string().uuid('Invalid application ID');
+
+export type EligibilityOverrides = z.infer<typeof eligibilityOverridesSchema>;
+export type DraftMembershipApplicationInput = z.infer<typeof draftMembershipApplicationInputSchema>;
