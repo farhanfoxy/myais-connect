@@ -99,3 +99,40 @@ export const informationRequestResponseSchema = z.object({
 
 export type ApplicationDocumentUploadInput = z.infer<typeof applicationDocumentUploadSchema>;
 export type InformationRequestAttachmentUploadInput = z.infer<typeof informationRequestAttachmentUploadSchema>;
+
+const reviewerApplicationStatusSchema = z.enum([
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'ADDITIONAL_INFORMATION_REQUIRED',
+  'ELIGIBLE',
+  'RECOMMENDED_FOR_APPROVAL',
+  'APPROVED_PENDING_PAYMENT',
+  'PAYMENT_SUBMITTED',
+  'PAYMENT_UNDER_VERIFICATION',
+  'ACTIVE',
+  'REJECTED',
+  'EXPIRED',
+  'SUSPENDED',
+  'TERMINATED',
+]);
+
+export const reviewerApplicationQueueSchema = z.object({
+  status: z.union([z.literal('ALL'), reviewerApplicationStatusSchema]).default('ALL'),
+  search: z.string().trim().max(200).default(''),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+}).strict();
+
+export const reviewerOptionalRemarksSchema = z.object({
+  remarks: z.string().optional().default(''),
+}).strict();
+
+export const reviewerRequestInformationSchema = z.object({
+  remarks: z.string().refine(value => value.trim().length > 0, 'Remarks are required'),
+  dueDate: calendarDate.optional().nullable(),
+}).strict();
+
+export const reviewerRejectSchema = z.object({
+  remarks: z.string().refine(value => value.trim().length > 0, 'Remarks are required'),
+}).strict();

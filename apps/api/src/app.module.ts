@@ -8,6 +8,7 @@ import { EligibilityModule } from './eligibility/eligibility.module.js';
 import { MembershipApplicationsModule } from './membership-applications/membership-applications.module.js';
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module.js';
 import { InformationRequestsModule } from './information-requests/information-requests.module.js';
+import { ReviewerApplicationsModule } from './reviewer-applications/reviewer-applications.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { InformationRequestsModule } from './information-requests/information-re
     MembershipApplicationsModule,
     ApplicationDocumentsModule,
     InformationRequestsModule,
+    ReviewerApplicationsModule,
   ],
   controllers: [HealthController],
 })
