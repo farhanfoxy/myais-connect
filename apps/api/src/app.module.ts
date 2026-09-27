@@ -9,6 +9,8 @@ import { MembershipApplicationsModule } from './membership-applications/membersh
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module.js';
 import { InformationRequestsModule } from './information-requests/information-requests.module.js';
 import { ReviewerApplicationsModule } from './reviewer-applications/reviewer-applications.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
+import { ReviewerPaymentsModule } from './reviewer-payments/reviewer-payments.module.js';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { ReviewerApplicationsModule } from './reviewer-applications/reviewer-app
     ApplicationDocumentsModule,
     InformationRequestsModule,
     ReviewerApplicationsModule,
+    PaymentsModule,
+    ReviewerPaymentsModule,
   ],
   controllers: [HealthController],
 })

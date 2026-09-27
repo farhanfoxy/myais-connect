@@ -141,3 +141,37 @@ export const reviewerApproveSchema = z.object({
   approvedMembershipTypeId: z.string().uuid('Invalid membership type ID'),
   remarks: z.string().optional().default(''),
 }).strict();
+
+export const paymentReceiptUploadSchema = privateUploadMetadataSchema;
+
+export const paymentReceiptSubmissionSchema = z.object({
+  uploadToken: z.string().min(1),
+  paymentMethod: z.enum(['BANK_TRANSFER', 'ONLINE_BANKING', 'CASH_DEPOSIT']),
+  bankName: z.string().optional().nullable(),
+  transactionReference: z.string().transform(value => value.trim())
+    .pipe(z.string().min(1, 'Transaction reference is required')),
+  paidAt: calendarDate.optional().nullable(),
+}).strict();
+
+const paymentStatusSchema = z.enum([
+  'NOT_SUBMITTED',
+  'SUBMITTED',
+  'UNDER_VERIFICATION',
+  'VERIFIED',
+  'REJECTED',
+]);
+
+export const reviewerPaymentQueueSchema = z.object({
+  status: z.union([z.literal('ALL'), paymentStatusSchema]).default('ALL'),
+  search: z.string().trim().max(200).default(''),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+}).strict();
+
+export const reviewerPaymentRemarksSchema = z.object({
+  treasurerRemarks: z.string().optional().default(''),
+}).strict();
+
+export const reviewerPaymentRejectSchema = z.object({
+  remarks: z.string().refine(value => value.trim().length > 0, 'Remarks are required'),
+}).strict();
