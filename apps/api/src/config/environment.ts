@@ -9,8 +9,21 @@ export interface ApiEnvironment {
   supabaseJwtAudience: string;
   supabaseJwtIssuer: string;
   supabaseJwksUrl: string;
+  supabasePrivateStorage?: {
+    bucket: string;
+    serviceRoleKey: string;
+  };
   port: number;
   host: string;
+}
+
+function privateStorageEnvironment(env: NodeJS.ProcessEnv): ApiEnvironment['supabasePrivateStorage'] {
+  const bucket = env.SUPABASE_STORAGE_BUCKET;
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!bucket?.trim() || !serviceRoleKey?.trim()) return undefined;
+  if (bucket !== bucket.trim() || serviceRoleKey !== serviceRoleKey.trim() ||
+      /[\r\n/\\]/.test(bucket) || /[\r\n]/.test(serviceRoleKey)) return undefined;
+  return { bucket, serviceRoleKey };
 }
 
 export function validateEnvironment(env: NodeJS.ProcessEnv): ApiEnvironment {
@@ -44,6 +57,7 @@ export function validateEnvironment(env: NodeJS.ProcessEnv): ApiEnvironment {
   const authBaseUrl = `${parsedSupabaseUrl.origin}/auth/v1`;
   return { databaseUrl, supabaseUrl: parsedSupabaseUrl.origin, supabaseJwtAudience,
     supabaseJwtIssuer: authBaseUrl, supabaseJwksUrl: `${authBaseUrl}/.well-known/jwks.json`,
+    supabasePrivateStorage: privateStorageEnvironment(env),
     port, host: env.HOST ?? '127.0.0.1' };
 }
 

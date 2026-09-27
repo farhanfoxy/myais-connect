@@ -438,6 +438,7 @@ model ApplicationDocument {
   userId             String                                 @db.Uuid
   documentType       ApplicationDocumentDocumentType
   fileUrl            String?
+  storageObjectKey   String?                                @unique
   originalFileName   String?
   mimeType           String?
   fileSize           Float?
@@ -492,15 +493,16 @@ model InformationRequest {
   legacyCreatedAt DateTime? @db.Timestamptz(3)
   legacyUpdatedAt DateTime? @db.Timestamptz(3)
 
-  applicationId         String                    @db.Uuid
-  requestedByUserId     String?                   @db.Uuid
-  requestedByName       String?
-  message               String
-  dueDate               DateTime?                 @db.Date
-  status                InformationRequestStatus? @default(OPEN)
-  applicantResponse     String?
-  responseAttachmentUrl String?
-  respondedAt           DateTime?                 @db.Timestamptz(3)
+  applicationId               String                    @db.Uuid
+  requestedByUserId           String?                   @db.Uuid
+  requestedByName             String?
+  message                     String
+  dueDate                     DateTime?                 @db.Date
+  status                      InformationRequestStatus? @default(OPEN)
+  applicantResponse           String?
+  responseAttachmentUrl       String?
+  responseAttachmentObjectKey String?                   @unique
+  respondedAt                 DateTime?                 @db.Timestamptz(3)
 
   application     MembershipApplication @relation("InformationRequest_applicationId", fields: [applicationId], references: [id], onDelete: Restrict)
   requestedByUser User?                 @relation("InformationRequest_requestedByUserId", fields: [requestedByUserId], references: [id], onDelete: SetNull)
@@ -565,6 +567,7 @@ model Payment {
   bankName             String?
   transactionReference String?
   receiptUrl           String?
+  receiptObjectKey     String?            @unique
   status               PaymentStatus?     @default(NOT_SUBMITTED)
   paidAt               DateTime?          @db.Timestamptz(3)
   submittedAt          DateTime?          @db.Timestamptz(3)
