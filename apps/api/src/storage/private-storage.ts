@@ -44,3 +44,4 @@ export interface PrivateStorage {
 
 export class PrivateStorageUnavailableError extends Error {}
 export class PrivateUploadNotFoundError extends Error {}
+export class PrivateUploadMetadataMismatchError extends PrivateUploadNotFoundError {}

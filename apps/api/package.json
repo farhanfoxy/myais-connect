@@ -14,17 +14,18 @@
   "dependencies": {
     "@myais/database": "workspace:*",
     "@myais/validation": "workspace:*",
-    "dotenv": "17.4.2",
     "@nestjs/common": "12.0.1",
     "@nestjs/core": "12.0.1",
     "@nestjs/platform-express": "12.0.1",
+    "@supabase/storage-js": "2.117.0",
+    "dotenv": "17.4.2",
     "jose": "6.2.12",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },
   "devDependencies": {
     "@myais/config": "workspace:*",
-    "@nestjs/testing": "12.0.1",
-    "@nestjs/cli": "12.0.0"
+    "@nestjs/cli": "12.0.0",
+    "@nestjs/testing": "12.0.1"
   }
 }
