@@ -9,6 +9,11 @@ export interface CanonicalUser {
   accountStatus: string | null;
 }
 
+export interface RegistrationNameResult {
+  fullName: string | null;
+  synchronized: boolean;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -30,6 +35,12 @@ export class ApiClient {
 
   getCurrentUser(): Promise<CanonicalUser> {
     return this.request<CanonicalUser>('/auth/me');
+  }
+
+  setRegistrationName(fullName: string): Promise<RegistrationNameResult> {
+    return this.request<RegistrationNameResult>('/auth/me/name', {
+      method: 'PUT', body: JSON.stringify({ fullName }),
+    });
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {

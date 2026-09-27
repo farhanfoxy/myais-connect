@@ -10,6 +10,10 @@ import {
   type RegistrationResult,
 } from '@/lib/auth-service';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import {
+  createPendingRegistrationNameStore,
+  type PendingRegistrationNameStore,
+} from '@/lib/pending-registration-name';
 
 interface AuthContextValue {
   state: CurrentAuthState;
@@ -25,11 +29,20 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function pendingNameStore(): PendingRegistrationNameStore | undefined {
+  try {
+    return createPendingRegistrationNameStore(window.localStorage);
+  } catch {
+    return undefined;
+  }
+}
+
 function createService(): CanonicalAuthService {
   const supabase = getSupabaseBrowserClient();
   return new CanonicalAuthService(
     supabase.auth as unknown as AuthGateway,
     token => createApiClient(async () => token),
+    pendingNameStore(),
   );
 }
 

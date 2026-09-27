@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { registrationNameInputSchema } from '@myais/validation';
 import { PrismaService } from '../database/prisma.service.js';
 import { principalSelect, type CanonicalPrincipal, type VerifiedIdentity } from './auth.types.js';
 
@@ -10,6 +11,31 @@ function isConcurrentConflict(error: unknown): boolean {
 @Injectable()
 export class CanonicalUserService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async updateOwnRegistrationName(userId: string, input: unknown) {
+    const parsed = registrationNameInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Registration name validation failed',
+        errors: parsed.error.issues.map(issue => ({ field: issue.path.join('.'), message: issue.message })),
+      });
+    }
+    const existing = await this.prisma.client.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { fullName: true, legacyBase44Id: true },
+    });
+    if (existing.legacyBase44Id !== null || existing.fullName !== null) {
+      return { fullName: existing.fullName, synchronized: false };
+    }
+    const updated = await this.prisma.client.user.updateMany({
+      where: { id: userId, legacyBase44Id: null, fullName: null, accountStatus: 'ACTIVE' },
+      data: { fullName: parsed.data.fullName },
+    });
+    const current = await this.prisma.client.user.findUniqueOrThrow({
+      where: { id: userId }, select: { fullName: true },
+    });
+    return { fullName: current.fullName, synchronized: updated.count === 1 };
+  }
 
   async resolve(identity: VerifiedIdentity): Promise<CanonicalPrincipal> {
     const client = this.prisma.client;

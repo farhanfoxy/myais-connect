@@ -84,7 +84,8 @@ const request = {
 };
 
 test('storage selection uses Supabase only when complete server configuration exists', async () => {
-  const base = { DATABASE_URL: 'postgresql://localhost/myais', SUPABASE_URL: supabaseUrl };
+  const base = { DATABASE_URL: 'postgresql://localhost/myais', SUPABASE_URL: supabaseUrl,
+    WEB_ALLOWED_ORIGINS: 'http://localhost:3000' };
   const configured = selectPrivateStorage(validateEnvironment({
     ...base,
     SUPABASE_STORAGE_BUCKET: bucket,

@@ -1,4 +1,5 @@
 import { ApiClient, ApiError, type CanonicalUser } from './api-client';
+import type { PendingRegistrationNameStore } from './pending-registration-name';
 import { canonicalDestination, roleFamily } from './roles';
 
 export interface BrowserSession {
@@ -40,7 +41,8 @@ export class SafeAuthError extends Error {}
 export class CanonicalAuthService {
   constructor(
     private readonly auth: AuthGateway,
-    private readonly apiForToken: (token: string) => Pick<ApiClient, 'getCurrentUser'>,
+    private readonly apiForToken: (token: string) => Pick<ApiClient, 'getCurrentUser' | 'setRegistrationName'>,
+    private readonly pendingNames?: PendingRegistrationNameStore,
   ) {}
 
   async current(): Promise<CurrentAuthState> {
@@ -72,6 +74,7 @@ export class CanonicalAuthService {
       },
     });
     if (result.error) throw new SafeAuthError('We could not create your account. Please try again.');
+    this.pendingNames?.save({ fullName: input.fullName, email: input.email });
     if (!result.data.session) return { status: 'confirmation-required', email: input.email };
     return this.resolve(result.data.session);
   }
@@ -120,11 +123,12 @@ export class CanonicalAuthService {
 
   private async resolve(session: BrowserSession): Promise<CurrentAuthState> {
     try {
-      const user = await this.apiForToken(session.access_token).getCurrentUser();
+      const api = this.apiForToken(session.access_token);
+      const user = await api.getCurrentUser();
       if (user.accountStatus !== 'ACTIVE' || !roleFamily(user.role)) {
         return { status: 'access-denied', user, message: 'Your MyAIS account is not available for this area.' };
       }
-      return { status: 'authenticated', user };
+      return { status: 'authenticated', user: await this.synchronizePendingName(api, user) };
     } catch (error) {
       if (error instanceof ApiError && error.kind === 'unauthorized') {
         await this.auth.signOut({ scope: 'local' });
@@ -134,6 +138,25 @@ export class CanonicalAuthService {
         return { status: 'access-denied', message: 'Your MyAIS account is not active or cannot be accessed.' };
       }
       return { status: 'api-unavailable', message: 'We cannot reach MyAIS services right now. Please try again.' };
+    }
+  }
+
+  private async synchronizePendingName(
+    api: Pick<ApiClient, 'setRegistrationName'>,
+    user: CanonicalUser,
+  ): Promise<CanonicalUser> {
+    const pending = this.pendingNames?.read();
+    if (!pending) return user;
+    if (pending.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+      this.pendingNames?.clear();
+      return user;
+    }
+    try {
+      const result = await api.setRegistrationName(pending.fullName);
+      this.pendingNames?.clear();
+      return { ...user, fullName: result.fullName ?? user.fullName };
+    } catch {
+      return user;
     }
   }
 }

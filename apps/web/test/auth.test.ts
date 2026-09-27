@@ -17,6 +17,10 @@ import {
   validateRegistration,
 } from '@/lib/auth-validation';
 import { canonicalDestination } from '@/lib/roles';
+import {
+  createPendingRegistrationNameStore,
+  type PendingRegistrationNameStore,
+} from '@/lib/pending-registration-name';
 
 const session: BrowserSession = { access_token: 'private-access-token' };
 const applicant: CanonicalUser = {
@@ -41,12 +45,24 @@ function authGateway(overrides: Partial<AuthGateway> = {}): AuthGateway {
   };
 }
 
-function service(user: CanonicalUser = applicant, gateway = authGateway()) {
+function pendingStore(record: { fullName: string; email: string; createdAt: number } | null = null) {
+  let current = record;
+  const store: PendingRegistrationNameStore = {
+    save: vi.fn(input => { current = { ...input, createdAt: Date.now() }; }),
+    read: vi.fn(() => current),
+    clear: vi.fn(() => { current = null; }),
+  };
+  return store;
+}
+
+function service(user: CanonicalUser = applicant, gateway = authGateway(), names?: PendingRegistrationNameStore) {
   const getCurrentUser = vi.fn(async () => user);
+  const setRegistrationName = vi.fn(async (fullName: string) => ({ fullName, synchronized: true }));
   return {
     gateway,
     getCurrentUser,
-    value: new CanonicalAuthService(gateway, () => ({ getCurrentUser })),
+    setRegistrationName,
+    value: new CanonicalAuthService(gateway, () => ({ getCurrentUser, setRegistrationName }), names),
   };
 }
 
@@ -120,7 +136,10 @@ describe('canonical authentication flow', () => {
       [new ApiError(403, 'forbidden', 'denied'), 'access-denied', false],
     ] as const) {
       const gateway = authGateway();
-      const current = new CanonicalAuthService(gateway, () => ({ getCurrentUser: vi.fn(async () => { throw error; }) }));
+      const current = new CanonicalAuthService(gateway, () => ({
+        getCurrentUser: vi.fn(async () => { throw error; }),
+        setRegistrationName: vi.fn(),
+      }));
       expect((await current.current()).status).toBe(expected);
       expect(gateway.signOut).toHaveBeenCalledTimes(signsOut ? 1 : 0);
     }
@@ -137,6 +156,7 @@ describe('canonical authentication flow', () => {
   it('returns an API-unavailable state without exposing provider errors', async () => {
     const current = new CanonicalAuthService(authGateway(), () => ({
       getCurrentUser: vi.fn(async () => { throw new Error('postgresql://private:secret@internal'); }),
+      setRegistrationName: vi.fn(),
     }));
     expect(await current.current()).toEqual({
       status: 'api-unavailable',
@@ -148,7 +168,8 @@ describe('canonical authentication flow', () => {
 describe('registration and recovery', () => {
   it('returns the email-confirmation state and sends only profile metadata, never authorization fields', async () => {
     const gateway = authGateway();
-    const result = await service(applicant, gateway).value.register({
+    const names = pendingStore();
+    const result = await service(applicant, gateway, names).value.register({
       fullName: 'Nur Aina', email: 'aina@example.test', password: 'secret',
       emailRedirectTo: 'https://app.example.test/auth/callback',
     });
@@ -161,6 +182,42 @@ describe('registration and recovery', () => {
       },
     });
     expect(JSON.stringify(vi.mocked(gateway.signUp).mock.calls)).not.toMatch(/accountStatus|userId|role/);
+    expect(names.save).toHaveBeenCalledWith({ fullName: 'Nur Aina', email: 'aina@example.test' });
+  });
+
+  it('synchronizes a pending signup name only after canonical callback resolution', async () => {
+    const names = pendingStore({ fullName: 'Nur Aina', email: 'member@example.test', createdAt: Date.now() });
+    const fixture = service({ ...applicant, fullName: null }, authGateway({
+      getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+    }), names);
+    const state = await fixture.value.completeCallback('https://app.example.test/auth/callback?code=confirmed');
+    expect(fixture.getCurrentUser).toHaveBeenCalledOnce();
+    expect(fixture.setRegistrationName).toHaveBeenCalledWith('Nur Aina');
+    expect(state).toMatchObject({ status: 'authenticated', user: { fullName: 'Nur Aina', role: 'APPLICANT' } });
+    expect(names.clear).toHaveBeenCalledOnce();
+  });
+
+  it('gracefully keeps the canonical user when no pending registration name exists', async () => {
+    const names = pendingStore();
+    const fixture = service(applicant, authGateway(), names);
+    await expect(fixture.value.current()).resolves.toEqual({ status: 'authenticated', user: applicant });
+    expect(fixture.setRegistrationName).not.toHaveBeenCalled();
+  });
+
+  it('stores only a short-lived name and email record for cross-tab confirmation', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
+    let now = 1_000;
+    const names = createPendingRegistrationNameStore(storage, () => now);
+    names.save({ fullName: 'Nur Aina', email: 'aina@example.test' });
+    expect(names.read()).toEqual({ fullName: 'Nur Aina', email: 'aina@example.test', createdAt: 1_000 });
+    expect([...values.values()].join('')).not.toMatch(/password|token|role|accountStatus|userId/);
+    now += 24 * 60 * 60 * 1000 + 1;
+    expect(names.read()).toBeNull();
   });
 
   it('completes a valid confirmation callback through /auth/me and rejects expired callbacks', async () => {
@@ -216,6 +273,20 @@ describe('typed API client', () => {
       fetcher as typeof fetch);
     await expect(client.getCurrentUser()).resolves.toEqual(applicant);
     expect(fetcher).toHaveBeenCalledWith('https://api.example.test/auth/me', expect.any(Object));
+  });
+
+  it('sends only fullName to the self-only registration-name endpoint', async () => {
+    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe('PUT');
+      expect(JSON.parse(String(init?.body))).toEqual({ fullName: 'Nur Aina' });
+      return new Response(JSON.stringify({ fullName: 'Nur Aina', synchronized: true }), { status: 200 });
+    });
+    const client = new ApiClient('https://api.example.test', async () => 'private-access-token',
+      fetcher as typeof fetch);
+    await expect(client.setRegistrationName('Nur Aina')).resolves.toEqual({
+      fullName: 'Nur Aina', synchronized: true,
+    });
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/auth/me/name', expect.any(Object));
   });
 
   it('contains no web runtime reference to the service-role credential', () => {

@@ -1,21 +1,27 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import process from 'node:process';
 import { test } from 'node:test';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../dist/app.module.js';
 import { PRISMA_CLIENT, PrismaService } from '../dist/database/prisma.service.js';
 import { HealthController } from '../dist/health/health.controller.js';
 import { validateEnvironment } from '../dist/config/environment.js';
+import { createCorsOptions } from '../dist/config/cors.js';
 import { canAccessProtectedApi } from '../dist/auth/account-access.js';
 import { SupabaseJwtVerifier } from '../dist/auth/supabase-jwt.verifier.js';
 
 const supabaseUrl = 'https://example.supabase.co';
+const webOrigin = 'http://localhost:3000';
+const configuredEnvironment = { SUPABASE_URL: supabaseUrl, WEB_ALLOWED_ORIGINS: webOrigin };
+process.env.WEB_ALLOWED_ORIGINS ??= webOrigin;
 
 test('DATABASE_URL is mandatory; DIRECT_URL cannot substitute for it', () => {
   for (const env of [{}, { DATABASE_URL: '' }, { DATABASE_URL: ' ' }, { DIRECT_URL: 'postgresql://private:secret@private/db' }])
     assert.throws(() => validateEnvironment(env), { message: 'DATABASE_URL is required' });
   const value = 'postgresql://runtime:synthetic@localhost/runtime';
-  assert.equal(validateEnvironment({ DATABASE_URL: value, DIRECT_URL: 'ignored', SUPABASE_URL: supabaseUrl }).databaseUrl, value);
+  assert.equal(validateEnvironment({ DATABASE_URL: value, DIRECT_URL: 'ignored', ...configuredEnvironment }).databaseUrl,
+    value);
 });
 
 test('invalid configuration errors do not disclose values', () => {
@@ -34,16 +40,41 @@ test('Supabase settings derive issuer and JWKS from one validated origin', () =>
     assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: invalid }),
       { message: 'SUPABASE_URL must be a valid Supabase origin URL' });
   }
-  const config = validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: `${supabaseUrl}/` });
+  const config = validateEnvironment({ DATABASE_URL: databaseUrl, ...configuredEnvironment,
+    SUPABASE_URL: `${supabaseUrl}/` });
   assert.equal(config.supabaseUrl, supabaseUrl);
   assert.equal(config.supabaseJwtAudience, 'authenticated');
   assert.equal(config.supabaseJwtIssuer, `${supabaseUrl}/auth/v1`);
   assert.equal(config.supabaseJwksUrl, `${supabaseUrl}/auth/v1/.well-known/jwks.json`);
-  assert.equal(validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: supabaseUrl,
+  assert.equal(validateEnvironment({ DATABASE_URL: databaseUrl, ...configuredEnvironment,
     SUPABASE_JWT_AUDIENCE: 'custom-audience' }).supabaseJwtAudience, 'custom-audience');
-  assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl, SUPABASE_URL: supabaseUrl,
+  assert.throws(() => validateEnvironment({ DATABASE_URL: databaseUrl, ...configuredEnvironment,
     SUPABASE_JWT_AUDIENCE: ' ' }),
   { message: 'SUPABASE_JWT_AUDIENCE must be a non-empty value' });
+});
+
+test('web CORS uses exact configured origins and leaves non-browser clients unaffected', () => {
+  const config = validateEnvironment({ DATABASE_URL: 'postgresql://localhost/myais',
+    ...configuredEnvironment, WEB_ALLOWED_ORIGINS: `${webOrigin}, https://members.example.test,${webOrigin}` });
+  assert.deepEqual(config.webAllowedOrigins, [webOrigin, 'https://members.example.test']);
+  const options = createCorsOptions(config.webAllowedOrigins);
+  const origin = options.origin;
+  assert(options.allowedHeaders.includes('Authorization'));
+  assert(options.allowedHeaders.includes('Content-Type'));
+  assert.equal(options.credentials, false);
+  for (const [requestOrigin, expected] of [[webOrigin, true], ['https://unknown.example.test', false],
+    [undefined, true]]) {
+    let actual;
+    origin(requestOrigin, (error, allowed) => { assert.equal(error, null); actual = allowed; });
+    assert.equal(actual, expected);
+  }
+  for (const invalid of [undefined, '', '*', 'https://members.example.test/path',
+    'http://members.example.test', `${webOrigin},`]) {
+    assert.throws(() => validateEnvironment({ DATABASE_URL: 'postgresql://localhost/myais',
+      SUPABASE_URL: supabaseUrl, WEB_ALLOWED_ORIGINS: invalid }),
+    { message: invalid === undefined || invalid === '' ? 'WEB_ALLOWED_ORIGINS is required' :
+      'WEB_ALLOWED_ORIGINS must contain valid web origins' });
+  }
 });
 
 test('protected account status permits ACTIVE only', () => {

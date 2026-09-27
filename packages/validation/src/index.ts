@@ -48,6 +48,13 @@ export const memberProfileInputSchema = z.object({
 
 export type MemberProfileInput = z.infer<typeof memberProfileInputSchema>;
 
+export const registrationNameInputSchema = z.object({
+  fullName: z.string().transform(value => value.trim().replace(/\s+/g, ' '))
+    .pipe(z.string().min(2, 'Full Name must be at least 2 characters')),
+}).strict();
+
+export type RegistrationNameInput = z.infer<typeof registrationNameInputSchema>;
+
 export const eligibilityOverridesSchema = z.object({
   malaysianCitizen: z.boolean().optional(),
   dateOfBirth: calendarDate.optional(),

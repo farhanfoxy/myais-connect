@@ -16,7 +16,7 @@ import { AuthController } from '../dist/auth/auth.controller.js';
 const userId = '123e4567-e89b-42d3-a456-426614174000';
 const otherId = '123e4567-e89b-42d3-a456-426614174001';
 const config = validateEnvironment({ DATABASE_URL: 'postgresql://localhost/myais',
-  SUPABASE_URL: 'https://example.supabase.co' });
+  SUPABASE_URL: 'https://example.supabase.co', WEB_ALLOWED_ORIGINS: 'http://localhost:3000' });
 
 function account(overrides = {}) {
   return { id: '111e4567-e89b-42d3-a456-426614174000', email: 'person@example.test',
@@ -38,9 +38,13 @@ function memoryDatabase(initial = []) {
       const [field, value] = Object.entries(where)[0];
       return rows.find(row => row[field] === value) ?? null;
     },
+    async findUniqueOrThrow({ where }) {
+      const row = await this.findUnique({ where });
+      if (!row) throw new Error('not found');
+      return row;
+    },
     async updateMany({ where, data }) {
-      const row = rows.find(value => value.id === where.id && value.accountStatus === where.accountStatus &&
-        value.supabaseAuthUserId === where.supabaseAuthUserId);
+      const row = rows.find(value => Object.entries(where).every(([field, expected]) => value[field] === expected));
       if (!row) return { count: 0 };
       Object.assign(row, data); updates++;
       return { count: 1 };
@@ -192,9 +196,60 @@ test('RolesGuard uses canonical role, allows unrestricted ACTIVE, and denies mis
 test('/auth/me has JWT and ACTIVE guards, returns only safe client fields', () => {
   const guards = Reflect.getMetadata(GUARDS_METADATA, AuthController.prototype.me);
   assert.deepEqual(guards, [SupabaseJwtGuard, ActiveAccountGuard]);
-  const response = new AuthController().me(account({ supabaseAuthUserId: userId }));
+  const response = new AuthController({}).me(account({ supabaseAuthUserId: userId }));
   assert.deepEqual(Object.keys(response).sort(),
     ['accountStatus', 'email', 'fullName', 'id', 'photoUrl', 'role']);
   assert(!JSON.stringify(response).includes('private-legacy-id'));
   assert(!JSON.stringify(response).includes(userId));
+});
+
+test('ACTIVE principal can set only their own normalized registration name once', async () => {
+  const own = account({ id: userId, legacyBase44Id: null });
+  const other = account({ id: otherId, email: 'other@example.test', legacyBase44Id: null });
+  const db = memoryDatabase([own, other]);
+  const service = new CanonicalUserService({ client: db.client });
+  const controller = new AuthController(service);
+  const guards = Reflect.getMetadata(GUARDS_METADATA, AuthController.prototype.updateOwnRegistrationName);
+  assert.deepEqual(guards, [SupabaseJwtGuard, ActiveAccountGuard]);
+  assert.deepEqual(await controller.updateOwnRegistrationName(own, { fullName: '  Nur   Aina  ' }),
+    { fullName: 'Nur Aina', synchronized: true });
+  const storedOwn = db.rows.find(row => row.id === userId);
+  const storedOther = db.rows.find(row => row.id === otherId);
+  assert.equal(storedOwn.fullName, 'Nur Aina');
+  assert.equal(storedOther.fullName, null);
+  assert.equal(storedOwn.role, 'APPLICANT');
+  assert.equal(storedOwn.accountStatus, 'ACTIVE');
+  assert.deepEqual(await controller.updateOwnRegistrationName(own, { fullName: 'Replacement Name' }),
+    { fullName: 'Nur Aina', synchronized: false });
+});
+
+test('registration name rejects short or security fields and never modifies legacy users', async () => {
+  const native = account({ id: userId, legacyBase44Id: null });
+  const db = memoryDatabase([native]);
+  const service = new CanonicalUserService({ client: db.client });
+  for (const input of [{ fullName: ' x ' }, { fullName: 'Valid Name', userId: otherId },
+    { fullName: 'Valid Name', role: 'SYSTEM_ADMINISTRATOR' },
+    { fullName: 'Valid Name', accountStatus: 'ACTIVE' }]) {
+    await assert.rejects(service.updateOwnRegistrationName(userId, input), error => error.getStatus() === 400);
+  }
+  assert.equal(native.fullName, null);
+  const legacy = account({ id: otherId, fullName: null, legacyBase44Id: 'legacy-user' });
+  const legacyDb = memoryDatabase([legacy]);
+  assert.deepEqual(await new CanonicalUserService({ client: legacyDb.client })
+    .updateOwnRegistrationName(otherId, { fullName: 'New Name' }),
+  { fullName: null, synchronized: false });
+  assert.equal(legacyDb.rows[0].fullName, null);
+});
+
+test('registration-name route requires authentication and an ACTIVE canonical account', async () => {
+  const jwt = new SupabaseJwtGuard({ verifyAccessToken: async () => ({
+    supabaseAuthUserId: userId, email: 'person@example.test',
+  }) }, { resolve: async () => account({ id: userId, accountStatus: 'ACTIVE' }) });
+  await assert.rejects(jwt.canActivate(context({ headers: {} },
+    AuthController.prototype.updateOwnRegistrationName)), error => error.getStatus() === 401);
+  for (const accountStatus of ['SUSPENDED', 'DISABLED', null]) {
+    assert.throws(() => new ActiveAccountGuard().canActivate(context({
+      principal: account({ id: userId, accountStatus }),
+    }, AuthController.prototype.updateOwnRegistrationName)), error => error.getStatus() === 403);
+  }
 });

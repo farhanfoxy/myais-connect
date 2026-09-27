@@ -9,12 +9,33 @@ export interface ApiEnvironment {
   supabaseJwtAudience: string;
   supabaseJwtIssuer: string;
   supabaseJwksUrl: string;
+  webAllowedOrigins: readonly string[];
   supabasePrivateStorage?: {
     bucket: string;
     serviceRoleKey: string;
   };
   port: number;
   host: string;
+}
+
+function webAllowedOrigins(env: NodeJS.ProcessEnv): readonly string[] {
+  const configured = env.WEB_ALLOWED_ORIGINS;
+  if (!configured?.trim()) throw new EnvironmentError('WEB_ALLOWED_ORIGINS is required');
+  const values = configured.split(',').map(value => value.trim());
+  if (values.some(value => !value))
+    throw new EnvironmentError('WEB_ALLOWED_ORIGINS must contain valid web origins');
+  const origins = values.map(value => {
+    try {
+      const url = new URL(value);
+      const localHttp = url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      if ((!localHttp && url.protocol !== 'https:') || url.username || url.password || url.pathname !== '/' ||
+          url.search || url.hash) throw new Error();
+      return url.origin;
+    } catch {
+      throw new EnvironmentError('WEB_ALLOWED_ORIGINS must contain valid web origins');
+    }
+  });
+  return [...new Set(origins)];
 }
 
 function privateStorageEnvironment(env: NodeJS.ProcessEnv): ApiEnvironment['supabasePrivateStorage'] {
@@ -57,6 +78,7 @@ export function validateEnvironment(env: NodeJS.ProcessEnv): ApiEnvironment {
   const authBaseUrl = `${parsedSupabaseUrl.origin}/auth/v1`;
   return { databaseUrl, supabaseUrl: parsedSupabaseUrl.origin, supabaseJwtAudience,
     supabaseJwtIssuer: authBaseUrl, supabaseJwksUrl: `${authBaseUrl}/.well-known/jwks.json`,
+    webAllowedOrigins: webAllowedOrigins(env),
     supabasePrivateStorage: privateStorageEnvironment(env),
     port, host: env.HOST ?? '127.0.0.1' };
 }
