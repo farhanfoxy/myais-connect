@@ -13,6 +13,17 @@ export function statusLabel(value: string | null | undefined): string {
   return labels[value] ?? value.toLowerCase().replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
 }
 
+const paymentMethodLabels: Record<string, string> = {
+  BANK_TRANSFER: 'Bank transfer',
+  ONLINE_BANKING: 'Online banking',
+  CASH_DEPOSIT: 'Cash deposit',
+};
+
+export function paymentMethodLabel(value: string | null | undefined): string {
+  if (!value) return 'Not provided';
+  return paymentMethodLabels[value] ?? statusLabel(value);
+}
+
 export type StatusTone = 'neutral' | 'success' | 'info' | 'warning' | 'danger';
 
 export function statusTone(value: string | null | undefined): StatusTone {

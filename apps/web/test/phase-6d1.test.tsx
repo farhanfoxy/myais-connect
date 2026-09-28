@@ -110,6 +110,16 @@ describe('application tracker', () => {
     expect((await screen.findAllByText(openRequest.message)).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /Respond to request/ }).getAttribute('href')).toBe('/my-application/respond');
   });
+
+  it.each([
+    ['APPROVED_PENDING_PAYMENT', 'Submit payment'], ['PAYMENT_SUBMITTED', 'View payment'],
+    ['PAYMENT_UNDER_VERIFICATION', 'View payment'], ['ACTIVE', 'View payment details'],
+  ])('links the %s action to the payment page', async (status, label) => {
+    fixture.listApplications.mockResolvedValue([application(status)]);
+    render(<ApplicationTracker />);
+    expect((await screen.findByRole('link', { name: new RegExp(label) })).getAttribute('href'))
+      .toBe('/my-application/payment');
+  });
 });
 
 describe('information response', () => {

@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DashboardPage from '@/app/(protected)/dashboard/page';
 import ProfilePage from '@/app/(protected)/profile/page';
-import type { MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
+import type { CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 
 const fixture = vi.hoisted(() => ({
   refresh: vi.fn(async () => ({ status: 'authenticated' })),
@@ -61,6 +61,14 @@ const draft: MembershipApplicationSummary = {
   updatedAt: '2026-09-21T00:00:00.000Z', openInformationRequests: [],
 };
 
+const payable: CurrentPayment = {
+  applicationNumber: 'MYAIS-APP-2026-000042', applicationStatus: 'APPROVED_PENDING_PAYMENT',
+  approvedMembershipType: { code: 'ASSOCIATE', name: 'Associate Member' },
+  payment: { id: 'payment-id', paymentReference: 'PAY-000042', entranceFee: '50.00', membershipFee: '100.00',
+    totalAmount: '150.00', currency: 'MYR', paymentMethod: null, bankName: null, transactionReference: null,
+    paidAt: null, status: 'NOT_SUBMITTED', submittedAt: null, treasurerRemarks: null, rejectionReason: null },
+};
+
 afterEach(cleanup);
 beforeEach(() => {
   fixture.state.user.role = 'APPLICANT';
@@ -111,6 +119,16 @@ describe('real member dashboard', () => {
     expect(screen.getByText('Membership Active')).toBeTruthy();
     expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
     expect(screen.queryByText('Check your eligibility')).toBeNull();
+  });
+
+  it('links the state-aware payment quick action when payment data is available', async () => {
+    const approved = { ...draft, applicationNumber: payable.applicationNumber, status: 'APPROVED_PENDING_PAYMENT' };
+    fixture.getCurrentApplication.mockResolvedValue(approved);
+    fixture.listApplications.mockResolvedValue([approved]);
+    fixture.getCurrentPayment.mockResolvedValue(payable);
+    render(<DashboardPage />);
+    expect((await screen.findByRole('link', { name: /Payment.*Submit payment/ })).getAttribute('href'))
+      .toBe('/my-application/payment');
   });
 
   it('still shows the safe page-level error when required profile data fails', async () => {

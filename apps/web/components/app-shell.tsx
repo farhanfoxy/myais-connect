@@ -17,7 +17,8 @@ interface MenuItem { label: string; icon: typeof UserRound; href?: string }
 const membershipItems: MenuItem[] = [
   { label: 'Profile', icon: UserRound, href: '/profile' },
   { label: 'My application', icon: FileText, href: '/my-application' },
-  { label: 'Application tracker', icon: FileClock, href: '/my-application/tracker' }, { label: 'Payment', icon: CreditCard },
+  { label: 'Application tracker', icon: FileClock, href: '/my-application/tracker' },
+  { label: 'Payment', icon: CreditCard, href: '/my-application/payment' },
   { label: 'Membership card', icon: IdCard },
 ];
 const memberDrawerItems: MenuItem[] = [...membershipItems,

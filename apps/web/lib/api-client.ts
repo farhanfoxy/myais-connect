@@ -122,7 +122,32 @@ export interface CurrentPayment {
   applicationNumber: string | null;
   applicationStatus: string;
   approvedMembershipType: { code: string; name: string | null } | null;
-  payment: { status: string; paymentReference: string | null; totalAmount: string; currency: string } | null;
+  payment: {
+    id: string;
+    paymentReference: string | null;
+    entranceFee: string | null;
+    membershipFee: string | null;
+    totalAmount: string;
+    currency: string | null;
+    paymentMethod: PaymentMethod | null;
+    bankName: string | null;
+    transactionReference: string | null;
+    paidAt: string | null;
+    status: string | null;
+    submittedAt: string | null;
+    treasurerRemarks: string | null;
+    rejectionReason: string | null;
+  } | null;
+}
+
+export type PaymentMethod = 'BANK_TRANSFER' | 'ONLINE_BANKING' | 'CASH_DEPOSIT';
+
+export interface PaymentSubmissionResult {
+  id: string;
+  paymentReference: string | null;
+  status: 'SUBMITTED';
+  submittedAt: string;
+  supersededReceiptCleanupPending: boolean;
 }
 
 export class ApiError extends Error {
@@ -237,6 +262,26 @@ export class ApiClient {
   }
 
   getCurrentPayment(): Promise<CurrentPayment | null> { return this.request('/payments/current'); }
+
+  authorizePaymentReceiptUpload(input: {
+    originalFileName: string; mimeType: string; fileSize: number;
+  }): Promise<PrivateUploadTarget> {
+    return this.request('/payments/current/receipt-upload', {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
+
+  finalizePaymentReceiptAndSubmit(input: {
+    uploadToken: string;
+    paymentMethod: PaymentMethod;
+    bankName?: string;
+    transactionReference: string;
+    paidAt?: string;
+  }): Promise<PaymentSubmissionResult> {
+    return this.request('/payments/current/receipt-upload/finalize', {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = await this.accessToken();

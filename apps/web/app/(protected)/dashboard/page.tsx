@@ -51,6 +51,9 @@ export default function DashboardPage() {
   const latestApplication = data?.currentApplication ?? data?.applications[0] ?? null;
   const actionLabel = applicationAction(latestApplication?.status);
   const isCurrent = Boolean(data?.currentApplication);
+  const paymentAction = data?.payment?.payment?.status === 'REJECTED' ? 'Resubmit payment' :
+    latestApplication?.status === 'APPROVED_PENDING_PAYMENT' ? 'Submit payment' :
+      data?.payment ? 'View payment details' : 'No payment due';
 
   return <PageContainer className="dashboard-page">
     <PageHeading eyebrow="Member workspace" title="Dashboard"
@@ -85,13 +88,14 @@ export default function DashboardPage() {
 
     <section className="dashboard-section" aria-labelledby="quick-actions-heading">
       <SectionHeading id="quick-actions-heading" title="Quick actions"
-        description="Available tools and the next steps prepared for Phase 6C." />
+        description="Access your membership details and available next steps." />
       <div className="quick-action-grid">
         <QuickActionTile icon={UserRound} label="Profile" supporting="View and update" href="/profile" />
         <QuickActionTile icon={FileText} label={latestApplication ? 'My application' : 'Apply'}
           supporting={actionLabel} href="/my-application" />
-        <QuickActionTile icon={FileClock} label="Application tracker" supporting="Coming in Phase 6C" disabled />
-        <QuickActionTile icon={CreditCard} label="Payment" supporting="Coming in Phase 6C" disabled />
+        <QuickActionTile icon={FileClock} label="Application tracker" supporting="View progress" href="/my-application/tracker" />
+        <QuickActionTile icon={CreditCard} label="Payment" supporting={paymentAction}
+          {...(data?.payment ? { href: '/my-application/payment' } : { disabled: true })} />
         <QuickActionTile icon={IdCard} label="Membership card" supporting="Coming in a later phase" disabled />
         <QuickActionTile icon={Megaphone} label="Announcements" supporting="Coming in a later phase" disabled />
         <QuickActionTile icon={CalendarDays} label="Events" supporting="Coming in a later phase" disabled />
@@ -108,11 +112,11 @@ export default function DashboardPage() {
             <p>{latestApplication.requestedMembershipType?.name ?? latestApplication.requestedMembershipType?.code ?? 'Membership type not selected'}
               {' · '}Updated {readableDate(latestApplication.updatedAt)}</p></div>
           <div className="application-preview-state"><StatusBadge tone={statusTone(latestApplication.status)}>
-            {statusLabel(latestApplication.status)}</StatusBadge><span>{actionLabel} · Coming in Phase 6C</span></div>
+            {statusLabel(latestApplication.status)}</StatusBadge><span>{actionLabel}</span></div>
         </ContentCard> : <ContentCard className="application-preview empty-application">
           <span className="application-preview-icon"><FileText size={21} /></span>
           <div><h3>No application record found</h3>
-            <p>Complete your profile first. The application journey will be available in Phase 6C.</p></div>
+            <p>Complete your profile first, then begin your membership application.</p></div>
           <StatusBadge>Not started</StatusBadge>
         </ContentCard>}
     </section>

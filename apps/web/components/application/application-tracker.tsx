@@ -6,7 +6,6 @@ import {
   AlertCircle, ArrowRight, Check, Clock3, FileClock, MessageSquareText, RefreshCw, ShieldCheck,
 } from 'lucide-react';
 import { PageContainer, PageHeading, StatusBadge } from '@/components/dashboard/dashboard-ui';
-import { Button } from '@/components/ui/button';
 import type { MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { statusLabel, statusTone } from '@/lib/member-status';
@@ -73,15 +72,20 @@ function TrackerAction({ application }: Readonly<{ application: MembershipApplic
     UNDER_REVIEW: ['Review in progress', 'No member action is required while the committee reviews your application.'],
     ADDITIONAL_INFORMATION_REQUIRED: ['Information required', 'No open request is currently available. Refresh if the request was just created.'],
     RECOMMENDED_FOR_APPROVAL: ['Awaiting final approval', 'Your application has been recommended and is awaiting an approval decision.'],
-    APPROVED_PENDING_PAYMENT: ['Payment required', 'Online payment submission is coming in Phase 6D.2.'],
+    APPROVED_PENDING_PAYMENT: ['Payment required', 'Submit your payment details and receipt securely through MyAIS.'],
     PAYMENT_SUBMITTED: ['Payment submitted', 'Your receipt has been submitted and is awaiting verification.'],
     PAYMENT_UNDER_VERIFICATION: ['Payment verification', 'Your payment is being verified. No member action is required.'],
     ACTIVE: ['Membership active', 'Your membership application journey is complete.'],
     REJECTED: ['Application rejected', 'Review the decision details and reason shown above.'],
   };
   const content = copy[application.status] ?? ['Status recorded', `Your current status is ${statusLabel(application.status)}.`];
+  const paymentLabel = application.status === 'APPROVED_PENDING_PAYMENT' ? 'Submit payment' :
+    application.status === 'ACTIVE' ? 'View payment details' : 'View payment';
+  const showsPayment = ['APPROVED_PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'PAYMENT_UNDER_VERIFICATION', 'ACTIVE']
+    .includes(application.status);
   return <div className="tracker-action-panel"><div><strong>{content[0]}</strong><p>{content[1]}</p></div>
-    {application.status === 'APPROVED_PENDING_PAYMENT' && <Button disabled>Payment coming next</Button>}</div>;
+    {showsPayment && <Link className="button button-primary" href="/my-application/payment">
+      {paymentLabel} <ArrowRight size={17} /></Link>}</div>;
 }
 
 export function ApplicationTracker() {
