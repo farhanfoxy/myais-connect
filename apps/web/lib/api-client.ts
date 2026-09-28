@@ -14,6 +14,52 @@ export interface RegistrationNameResult {
   synchronized: boolean;
 }
 
+export interface MemberProfileFields {
+  fullName: string | null;
+  phoneNumber: string | null;
+  identificationType: 'NRIC' | 'PASSPORT' | 'OTHER' | null;
+  identificationNumber: string | null;
+  nationality: string | null;
+  dateOfBirth: string | null;
+  gender: 'MALE' | 'FEMALE' | 'OTHER' | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+  country: string | null;
+  institution: string | null;
+  occupation: string | null;
+  department: string | null;
+  areaOfExpertise: string | null;
+  aisMember: boolean;
+  aisMembershipNumber: string | null;
+  aisMembershipExpiry: string | null;
+  profileCompletionPercentage: number;
+}
+
+export interface MemberProfileResponse { email: string; exists: boolean; profile: MemberProfileFields }
+
+export interface MembershipApplicationSummary {
+  id: string;
+  applicationNumber: string | null;
+  requestedMembershipType: { code: string; name: string | null } | null;
+  recommendedMembershipType: { code: string; name: string | null } | null;
+  status: string;
+  currentStep: number | null;
+  submittedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  openInformationRequests: Array<{ id: string; message: string; dueDate: string | null; status: string }>;
+}
+
+export interface CurrentPayment {
+  applicationNumber: string | null;
+  applicationStatus: string;
+  approvedMembershipType: { code: string; name: string | null } | null;
+  payment: { status: string; paymentReference: string | null; totalAmount: string; currency: string } | null;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -42,6 +88,20 @@ export class ApiClient {
       method: 'PUT', body: JSON.stringify({ fullName }),
     });
   }
+
+  getProfile(): Promise<MemberProfileResponse> { return this.request('/profile'); }
+
+  updateProfile(input: unknown): Promise<MemberProfileResponse> {
+    return this.request('/profile', { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  getCurrentApplication(): Promise<MembershipApplicationSummary | null> {
+    return this.request('/applications/current');
+  }
+
+  listApplications(): Promise<MembershipApplicationSummary[]> { return this.request('/applications'); }
+
+  getCurrentPayment(): Promise<CurrentPayment | null> { return this.request('/payments/current'); }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = await this.accessToken();

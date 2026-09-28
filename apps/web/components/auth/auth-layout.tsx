@@ -26,7 +26,7 @@ export function AuthLayout({
       <section className="auth-story" aria-label="About MyAIS Connect">
         <div className="auth-story-glow auth-story-glow-one" />
         <div className="auth-story-glow auth-story-glow-two" />
-        <BrandMark inverse />
+        <BrandMark full inverse />
         <div className="auth-story-content">
           <p className="auth-kicker">Malaysian Association for Information Systems</p>
           <h1>A more connected professional community.</h1>
@@ -43,7 +43,7 @@ export function AuthLayout({
         <p className="auth-story-footer">A professional platform for the MyAIS community.</p>
       </section>
       <section className="auth-form-panel">
-        <div className="auth-mobile-brand"><BrandMark /></div>
+        <div className="auth-mobile-brand"><BrandMark full /></div>
         <div className="auth-form-wrap">
           <header className="auth-heading">
             <p>{eyebrow}</p>

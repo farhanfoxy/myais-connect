@@ -1,61 +1,120 @@
 'use client';
 
-import { ArrowRight, CheckCircle2, Clock3, FileText, ShieldCheck, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  CalendarDays, CircleUserRound, CreditCard, FileClock, FileText, IdCard,
+  Megaphone, ShieldCheck, UserRound,
+} from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
+import {
+  ContentCard, PageContainer, PageHeading, QuickActionTile, SectionHeading, StatusBadge,
+  SummaryCard, WelcomeBanner,
+} from '@/components/dashboard/dashboard-ui';
+import type { CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
+import { createMemberApiClient } from '@/lib/member-api';
+import { applicationAction, statusLabel, statusTone } from '@/lib/member-status';
 import { humanizeEnum } from '@/lib/roles';
 
-const upcomingActions = [
-  { icon: UserRound, title: 'Complete your profile', copy: 'Add your professional and contact details.', phase: 'Available in Phase 6B' },
-  { icon: FileText, title: 'Start an application', copy: 'Review eligibility and select a membership type.', phase: 'Available in Phase 6B' },
-];
+interface DashboardData {
+  profile: MemberProfileResponse;
+  currentApplication: MembershipApplicationSummary | null;
+  applications: MembershipApplicationSummary[];
+  payment: CurrentPayment | null;
+}
+
+function readableDate(value: string): string {
+  return new Intl.DateTimeFormat('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
+}
 
 export default function DashboardPage() {
   const { state } = useAuth();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (state.status !== 'authenticated') return;
+    let active = true;
+    const api = createMemberApiClient();
+    void Promise.all([
+      api.getProfile(), api.getCurrentApplication(), api.listApplications(), api.getCurrentPayment(),
+    ]).then(([profile, currentApplication, applications, payment]) => {
+      if (active) setData({ profile, currentApplication, applications, payment });
+    }).catch(() => { if (active) setLoadError(true); });
+    return () => { active = false; };
+  }, [state.status]);
+
   if (state.status !== 'authenticated') return null;
   const { user } = state;
   const displayName = user.fullName?.trim() || user.email.split('@')[0] || 'Member';
+  const role = humanizeEnum(user.role);
+  const latestApplication = data?.currentApplication ?? data?.applications[0] ?? null;
+  const actionLabel = applicationAction(latestApplication?.status);
+  const isCurrent = Boolean(data?.currentApplication);
 
-  return (
-    <div className="dashboard-page">
-      <section className="welcome-panel">
-        <div className="welcome-copy">
-          <span className="welcome-eyebrow"><CheckCircle2 size={16} /> Secure workspace ready</span>
-          <h2>Welcome, {displayName}.</h2>
-          <p>Your MyAIS membership workspace is ready. Profile and application tools will arrive in the next phase.</p>
-        </div>
-        <div className="welcome-emblem" aria-hidden="true"><span>MY</span><strong>AIS</strong></div>
-      </section>
+  return <PageContainer className="dashboard-page">
+    <PageHeading eyebrow="Member workspace" title="Dashboard"
+      description="Your membership profile, application progress and next steps in one place." />
+    <WelcomeBanner role={role} name={displayName} context={latestApplication
+      ? `Your latest application is ${statusLabel(latestApplication.status).toLowerCase()}.`
+      : 'Complete your profile when you are ready to begin your membership journey.'} />
 
-      <div className="dashboard-grid">
-        <section className="dashboard-main">
-          <div className="section-heading"><div><p>Getting started</p><h3>Your next steps</h3></div>
-            <span className="quiet-badge"><Clock3 size={14} /> Coming next</span></div>
-          <div className="action-card-grid">
-            {upcomingActions.map(({ icon: Icon, title, copy, phase }) => (
-              <article className="action-card" key={title}>
-                <span className="action-icon"><Icon size={22} /></span>
-                <div><h4>{title}</h4><p>{copy}</p><small>{phase}</small></div>
-                <ArrowRight className="action-arrow" size={19} />
-              </article>
-            ))}
-          </div>
-          <div className="empty-workspace-state">
-            <span><FileText size={23} /></span>
-            <div><h3>No business data shown yet</h3><p>Application, payment and membership information will appear only after their dedicated screens query the NestJS API.</p></div>
-          </div>
-        </section>
+    {loadError && <div className="data-message data-message-error" role="alert">
+      We could not load your membership details. Refresh the page to try again.
+    </div>}
 
-        <aside className="account-summary">
-          <div className="section-heading"><div><p>Canonical account</p><h3>Your access</h3></div><ShieldCheck size={20} /></div>
-          <dl>
-            <div><dt>Name</dt><dd>{user.fullName ?? 'Complete during profile setup'}</dd></div>
-            <div><dt>Email</dt><dd>{user.email}</dd></div>
-            <div><dt>Role</dt><dd><span className="role-badge">{humanizeEnum(user.role)}</span></dd></div>
-            <div><dt>Account status</dt><dd><span className="active-badge"><span />{humanizeEnum(user.accountStatus)}</span></dd></div>
-          </dl>
-          <p className="account-note">Role and account access are verified by the MyAIS API for every protected session.</p>
-        </aside>
+    <section className="dashboard-section" aria-labelledby="account-summary-heading">
+      <SectionHeading id="account-summary-heading" title="At a glance"
+        description="Current information from the secure MyAIS API."
+        aside={<StatusBadge tone={statusTone(user.accountStatus)}>{statusLabel(user.accountStatus)}</StatusBadge>} />
+      {!data && !loadError ? <div className="summary-grid" aria-label="Loading dashboard information">
+        {[1, 2, 3].map(item => <div className="summary-card summary-card-loading" key={item} />)}
+      </div> : data && <div className="summary-grid">
+        <SummaryCard icon={ShieldCheck} label="Account access" value={statusLabel(user.accountStatus)}
+          supporting="Canonical account status" />
+        <SummaryCard icon={CircleUserRound} label="Profile completeness"
+          value={`${data.profile.profile.profileCompletionPercentage}%`}
+          supporting={data.profile.profile.profileCompletionPercentage === 100 ? 'Ready for application' : 'Complete your profile to apply'} />
+        <SummaryCard icon={FileClock} label="Application"
+          value={latestApplication ? statusLabel(latestApplication.status) : 'No application'}
+          supporting={latestApplication?.applicationNumber ?? 'No application record found'} />
+        {data.payment && <SummaryCard icon={CreditCard} label="Payment"
+          value={statusLabel(data.payment.payment?.status ?? data.payment.applicationStatus)}
+          supporting={data.payment.payment?.paymentReference ?? 'Payment linked to current application'} />}
+      </div>}
+    </section>
+
+    <section className="dashboard-section" aria-labelledby="quick-actions-heading">
+      <SectionHeading id="quick-actions-heading" title="Quick actions"
+        description="Available tools and the next steps prepared for Phase 6C." />
+      <div className="quick-action-grid">
+        <QuickActionTile icon={UserRound} label="Profile" supporting="View and update" href="/profile" />
+        <QuickActionTile icon={FileText} label={latestApplication ? 'My application' : 'Apply'}
+          supporting={`${actionLabel} · Phase 6C`} disabled />
+        <QuickActionTile icon={FileClock} label="Application tracker" supporting="Coming in Phase 6C" disabled />
+        <QuickActionTile icon={CreditCard} label="Payment" supporting="Coming in Phase 6C" disabled />
+        <QuickActionTile icon={IdCard} label="Membership card" supporting="Coming in a later phase" disabled />
+        <QuickActionTile icon={Megaphone} label="Announcements" supporting="Coming in a later phase" disabled />
+        <QuickActionTile icon={CalendarDays} label="Events" supporting="Coming in a later phase" disabled />
       </div>
-    </div>
-  );
+    </section>
+
+    <section className="dashboard-section" aria-labelledby="current-application-heading">
+      <SectionHeading id="current-application-heading" title={isCurrent ? 'Current application' : 'Recent application'}
+        description={isCurrent ? 'Your active membership application status.' : 'Your latest application history, when available.'} />
+      {!data && !loadError ? <ContentCard className="application-preview application-preview-loading"><span /></ContentCard> :
+        latestApplication ? <ContentCard className="application-preview">
+          <span className="application-preview-icon"><FileText size={21} /></span>
+          <div><h3>{latestApplication.applicationNumber ?? 'Draft application'}</h3>
+            <p>{latestApplication.requestedMembershipType?.name ?? latestApplication.requestedMembershipType?.code ?? 'Membership type not selected'}
+              {' · '}Updated {readableDate(latestApplication.updatedAt)}</p></div>
+          <div className="application-preview-state"><StatusBadge tone={statusTone(latestApplication.status)}>
+            {statusLabel(latestApplication.status)}</StatusBadge><span>{actionLabel} · Coming in Phase 6C</span></div>
+        </ContentCard> : <ContentCard className="application-preview empty-application">
+          <span className="application-preview-icon"><FileText size={21} /></span>
+          <div><h3>No application record found</h3>
+            <p>Complete your profile first. The application journey will be available in Phase 6C.</p></div>
+          <StatusBadge>Not started</StatusBadge>
+        </ContentCard>}
+    </section>
+  </PageContainer>;
 }
