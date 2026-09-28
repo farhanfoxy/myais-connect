@@ -95,4 +95,16 @@ describe('responsive application shell interactions', () => {
     await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
     expect(screen.getByRole('link', { name: 'My application' }).className).toContain('is-active');
   });
+
+  it('enables the tracker while payment and membership card remain deferred', async () => {
+    fixture.pathname = '/my-application/tracker';
+    const user = userEvent.setup();
+    render(<AppShell><p>Tracker content</p></AppShell>);
+    expect(screen.getByRole('link', { name: 'Application' }).className).toContain('is-active');
+    await user.click(screen.getByRole('button', { name: /Membership/ }));
+    expect(screen.getByRole('menuitem', { name: 'Application tracker' }).getAttribute('href'))
+      .toBe('/my-application/tracker');
+    expect(screen.getByRole('menuitem', { name: /Payment.*Soon/ }).getAttribute('href')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /Membership card.*Soon/ }).getAttribute('href')).toBeNull();
+  });
 });

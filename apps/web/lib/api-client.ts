@@ -110,6 +110,14 @@ export interface PrivateUploadTarget {
 
 export interface PrivateDownloadTarget { downloadUrl: string; expiresAt: string }
 
+export interface InformationResponseResult {
+  id: string;
+  status: 'RESPONDED';
+  respondedAt: string;
+  applicationStatus: 'UNDER_REVIEW';
+  attachmentUploaded: boolean;
+}
+
 export interface CurrentPayment {
   applicationNumber: string | null;
   applicationStatus: string;
@@ -207,6 +215,24 @@ export class ApiClient {
   submitApplication(applicationId: string): Promise<MembershipApplicationSummary> {
     return this.request(`/applications/${encodeURIComponent(applicationId)}/submit`, {
       method: 'POST', body: JSON.stringify({ declarationAccepted: true }),
+    });
+  }
+
+  authorizeInformationResponseUpload(applicationId: string, requestId: string, input: {
+    originalFileName: string; mimeType: string; fileSize: number;
+  }): Promise<PrivateUploadTarget> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/information-requests/` +
+      `${encodeURIComponent(requestId)}/attachment-upload`, {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
+
+  respondToInformationRequest(applicationId: string, requestId: string, input: {
+    response: string; attachmentUploadToken?: string;
+  }): Promise<InformationResponseResult> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/information-requests/` +
+      `${encodeURIComponent(requestId)}/respond`, {
+      method: 'POST', body: JSON.stringify(input),
     });
   }
 
