@@ -35,8 +35,9 @@ export default function DashboardPage() {
     if (state.status !== 'authenticated') return;
     let active = true;
     const api = createMemberApiClient();
+    const optionalPayment = api.getCurrentPayment().catch(() => null);
     void Promise.all([
-      api.getProfile(), api.getCurrentApplication(), api.listApplications(), api.getCurrentPayment(),
+      api.getProfile(), api.getCurrentApplication(), api.listApplications(), optionalPayment,
     ]).then(([profile, currentApplication, applications, payment]) => {
       if (active) setData({ profile, currentApplication, applications, payment });
     }).catch(() => { if (active) setLoadError(true); });
@@ -89,7 +90,7 @@ export default function DashboardPage() {
       <div className="quick-action-grid">
         <QuickActionTile icon={UserRound} label="Profile" supporting="View and update" href="/profile" />
         <QuickActionTile icon={FileText} label={latestApplication ? 'My application' : 'Apply'}
-          supporting={`${actionLabel} · Phase 6C`} disabled />
+          supporting={actionLabel} href="/my-application" />
         <QuickActionTile icon={FileClock} label="Application tracker" supporting="Coming in Phase 6C" disabled />
         <QuickActionTile icon={CreditCard} label="Payment" supporting="Coming in Phase 6C" disabled />
         <QuickActionTile icon={IdCard} label="Membership card" supporting="Coming in a later phase" disabled />

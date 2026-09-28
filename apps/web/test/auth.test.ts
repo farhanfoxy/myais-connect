@@ -289,6 +289,53 @@ describe('typed API client', () => {
     expect(fetcher).toHaveBeenCalledWith('https://api.example.test/auth/me/name', expect.any(Object));
   });
 
+  it('revalidates a cached GET response instead of treating HTTP 304 as an application failure', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 304 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(applicant), { status: 200 }));
+    const client = new ApiClient('https://api.example.test', async () => 'private-access-token',
+      fetcher as typeof fetch);
+    await expect(client.getCurrentUser()).resolves.toEqual(applicant);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ cache: 'reload' });
+  });
+
+  it('parses successful JSON objects and arrays', async () => {
+    const objectClient = new ApiClient('https://api.example.test', async () => 'token',
+      vi.fn(async () => new Response(JSON.stringify(applicant), { status: 200 })) as typeof fetch);
+    const arrayClient = new ApiClient('https://api.example.test', async () => 'token',
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })) as typeof fetch);
+    await expect(objectClient.getCurrentUser()).resolves.toEqual(applicant);
+    await expect(arrayClient.listApplications()).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['literal JSON null', new Response('null', { status: 200 })],
+    ['an empty 200 body', new Response(null, { status: 200 })],
+    ['a 204 response', new Response(null, { status: 204 })],
+  ])('returns null for %s', async (_description, response) => {
+    const client = new ApiClient('https://api.example.test', async () => 'token',
+      vi.fn(async () => response) as typeof fetch);
+    await expect(client.getCurrentApplication()).resolves.toBeNull();
+  });
+
+  it('rejects malformed non-empty JSON with a safe parsing error', async () => {
+    const client = new ApiClient('https://api.example.test', async () => 'token',
+      vi.fn(async () => new Response('{not-json', { status: 200 })) as typeof fetch);
+    await expect(client.getCurrentApplication()).rejects.toEqual(new ApiError(
+      0, 'unavailable', 'MyAIS returned an unexpected response. Please try again.',
+    ));
+  });
+
+  it.each([
+    [401, 'unauthorized'],
+    [403, 'forbidden'],
+  ] as const)('preserves normalized HTTP %s behavior', async (status, kind) => {
+    const client = new ApiClient('https://api.example.test', async () => 'token',
+      vi.fn(async () => new Response(null, { status })) as typeof fetch);
+    await expect(client.getCurrentApplication()).rejects.toMatchObject({ status, kind });
+  });
+
   it('contains no web runtime reference to the service-role credential', () => {
     const configSource = readFileSync(new URL('../lib/config.ts', import.meta.url), 'utf8');
     const supabaseSource = readFileSync(new URL('../lib/supabase.ts', import.meta.url), 'utf8');

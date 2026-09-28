@@ -47,11 +47,68 @@ export interface MembershipApplicationSummary {
   recommendedMembershipType: { code: string; name: string | null } | null;
   status: string;
   currentStep: number | null;
+  eligibilityScore: number | null;
+  eligibilityExplanation: string | null;
+  latestReviewerRemarks: string | null;
+  rejectionReason: string | null;
   submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  openInformationRequests: Array<{ id: string; message: string; dueDate: string | null; status: string }>;
+  documents: ApplicationDocument[];
+  reviewHistory: Array<{ id: string; decision: string; remarks: string | null; reviewerName: string | null; createdAt: string }>;
+  openInformationRequests: Array<{ id: string; requestedByName?: string | null; message: string; dueDate: string | null;
+    status: string; createdAt?: string }>;
 }
+
+export interface EligibilityInput {
+  malaysianCitizen?: boolean;
+  dateOfBirth?: string;
+  residingInMalaysia?: boolean;
+  aisMember?: boolean;
+  aisExpiry?: string;
+  aisNumber?: string;
+}
+
+export interface EligibilityResult {
+  recommendedTypeCode: 'ORDINARY' | 'ASSOCIATE';
+  recommendedTypeName: string;
+  explanation: string;
+  score: number;
+  selectableTypeCodes: Array<'ORDINARY' | 'LIFETIME' | 'ASSOCIATE'>;
+}
+
+export interface MembershipTypeOption {
+  id: string;
+  code: 'ORDINARY' | 'LIFETIME' | 'ASSOCIATE' | 'HONORARY';
+  name: string;
+  description: string | null;
+  entranceFee: string | null;
+  membershipFee: string | null;
+}
+
+export type ApplicationDocumentType = 'IDENTIFICATION' | 'AIS_MEMBERSHIP_PROOF' | 'PROFILE_PHOTO' |
+  'ADDITIONAL_SUPPORTING_DOCUMENT';
+
+export interface ApplicationDocument {
+  id: string;
+  documentType: ApplicationDocumentType;
+  originalFileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  verificationStatus: string | null;
+  createdAt: string;
+  downloadAvailable: boolean;
+}
+
+export interface PrivateUploadTarget {
+  uploadToken: string;
+  uploadUrl: string;
+  method: 'PUT';
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface PrivateDownloadTarget { downloadUrl: string; expiresAt: string }
 
 export interface CurrentPayment {
   applicationNumber: string | null;
@@ -101,6 +158,58 @@ export class ApiClient {
 
   listApplications(): Promise<MembershipApplicationSummary[]> { return this.request('/applications'); }
 
+  evaluateEligibility(input: EligibilityInput): Promise<EligibilityResult> {
+    return this.request('/registration/eligibility', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  listMembershipTypes(): Promise<MembershipTypeOption[]> {
+    return this.request('/registration/membership-types');
+  }
+
+  createApplicationDraft(input: { requestedMembershipTypeCode: string; eligibility: EligibilityInput }) {
+    return this.request<MembershipApplicationSummary>('/applications/draft', {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
+
+  getApplication(id: string): Promise<MembershipApplicationSummary> {
+    return this.request(`/applications/${encodeURIComponent(id)}`);
+  }
+
+  listApplicationDocuments(applicationId: string): Promise<ApplicationDocument[]> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/documents`);
+  }
+
+  authorizeApplicationDocumentUpload(applicationId: string, input: {
+    documentType: ApplicationDocumentType; originalFileName: string; mimeType: string; fileSize: number;
+  }): Promise<PrivateUploadTarget> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/documents/uploads`, {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
+
+  finalizeApplicationDocumentUpload(applicationId: string, uploadToken: string): Promise<ApplicationDocument> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/documents/uploads/finalize`, {
+      method: 'POST', body: JSON.stringify({ uploadToken }),
+    });
+  }
+
+  getApplicationDocumentDownload(applicationId: string, documentId: string): Promise<PrivateDownloadTarget> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/documents/${encodeURIComponent(documentId)}/download`);
+  }
+
+  deleteApplicationDocument(applicationId: string, documentId: string): Promise<{ deleted: true }> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/documents/${encodeURIComponent(documentId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  submitApplication(applicationId: string): Promise<MembershipApplicationSummary> {
+    return this.request(`/applications/${encodeURIComponent(applicationId)}/submit`, {
+      method: 'POST', body: JSON.stringify({ declarationAccepted: true }),
+    });
+  }
+
   getCurrentPayment(): Promise<CurrentPayment | null> { return this.request('/payments/current'); }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -113,13 +222,23 @@ export class ApiClient {
     try {
       const fetcher = this.fetcher;
       response = await fetcher(`${this.baseUrl}${path}`, { ...init, headers });
+      if (response.status === 304 && (!init.method || init.method === 'GET')) {
+        response = await fetcher(`${this.baseUrl}${path}`, { ...init, headers, cache: 'reload' });
+      }
     } catch {
       throw new ApiError(0, 'unavailable', 'MyAIS services are temporarily unavailable. Please try again.');
     }
     if (!response.ok) throw safeApiError(response.status);
-    if (response.status === 204) return undefined as T;
+    if (response.status === 204) return null as T;
+    let body: string;
     try {
-      return await response.json() as T;
+      body = await response.text();
+    } catch {
+      throw new ApiError(0, 'unavailable', 'MyAIS returned an unexpected response. Please try again.');
+    }
+    if (!body.trim()) return null as T;
+    try {
+      return JSON.parse(body) as T;
     } catch {
       throw new ApiError(0, 'unavailable', 'MyAIS returned an unexpected response. Please try again.');
     }

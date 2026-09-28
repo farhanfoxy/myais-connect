@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils';
 interface MenuItem { label: string; icon: typeof UserRound; href?: string }
 
 const membershipItems: MenuItem[] = [
-  { label: 'Profile', icon: UserRound, href: '/profile' }, { label: 'My application', icon: FileText },
+  { label: 'Profile', icon: UserRound, href: '/profile' },
+  { label: 'My application', icon: FileText, href: '/my-application' },
   { label: 'Application tracker', icon: FileClock }, { label: 'Payment', icon: CreditCard },
   { label: 'Membership card', icon: IdCard },
 ];
@@ -143,7 +144,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <Link className={cn('top-nav-link', pathname === home && 'is-active')} href={home}>
           {isCommittee ? 'Overview' : 'Dashboard'}</Link>
         {isCommittee ? <button className="top-nav-link" onClick={() => announce('Review workspace')}>Reviews</button> :
-          <MembershipMenu announce={announce} active={pathname === '/profile'} />}
+          <MembershipMenu announce={announce} active={pathname === '/profile' || pathname === '/my-application'} />}
         <button className="top-nav-link" onClick={() => announce('Events')}>Events</button>
         <button className="top-nav-link" onClick={() => announce('Announcements')}>News</button>
       </nav>
@@ -158,7 +159,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
     <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
       <Link className={cn(pathname === home && 'is-active')} href={home}><House /><span>Dashboard</span></Link>
-      <button onClick={() => announce('Application')}><FileText /><span>Application</span></button>
+      <Link className={cn(pathname === '/my-application' && 'is-active')} href="/my-application">
+        <FileText /><span>Application</span></Link>
       <button onClick={() => announce('Membership card')}><IdCard /><span>Card</span></button>
       <button onClick={event => openDrawer(event.currentTarget)}><Menu /><span>More</span></button>
     </nav>

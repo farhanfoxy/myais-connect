@@ -84,4 +84,15 @@ describe('responsive application shell interactions', () => {
     await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
     expect(screen.getByRole('link', { name: 'Profile' }).className).toContain('is-active');
   });
+
+  it('keeps the application route usable in desktop, drawer and mobile navigation', async () => {
+    fixture.pathname = '/my-application';
+    const user = userEvent.setup();
+    render(<AppShell><p>Application content</p></AppShell>);
+    expect(screen.getByRole('link', { name: 'Application' }).className).toContain('is-active');
+    await user.click(screen.getByRole('button', { name: /Membership/ }));
+    expect(screen.getByRole('menuitem', { name: 'My application' }).getAttribute('href')).toBe('/my-application');
+    await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    expect(screen.getByRole('link', { name: 'My application' }).className).toContain('is-active');
+  });
 });

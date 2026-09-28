@@ -56,11 +56,14 @@ const populatedProfile: MemberProfileResponse = {
 const draft: MembershipApplicationSummary = {
   id: 'application-1', applicationNumber: null, requestedMembershipType: { code: 'ASSOCIATE', name: 'Associate' },
   recommendedMembershipType: null, status: 'DRAFT', currentStep: 2, submittedAt: null,
-  createdAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-21T00:00:00.000Z', openInformationRequests: [],
+  eligibilityScore: 80, eligibilityExplanation: 'Associate membership recommended.', latestReviewerRemarks: null,
+  rejectionReason: null, documents: [], reviewHistory: [], createdAt: '2026-09-20T00:00:00.000Z',
+  updatedAt: '2026-09-21T00:00:00.000Z', openInformationRequests: [],
 };
 
 afterEach(cleanup);
 beforeEach(() => {
+  fixture.state.user.role = 'APPLICANT';
   fixture.refresh.mockClear();
   fixture.getProfile.mockReset().mockResolvedValue(populatedProfile);
   fixture.updateProfile.mockReset().mockResolvedValue(populatedProfile);
@@ -84,7 +87,8 @@ describe('real member dashboard', () => {
     render(<DashboardPage />);
     expect(await screen.findByText('Draft application')).toBeTruthy();
     expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
-    expect((screen.getByRole('button', { name: /Continue application/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('link', { name: /My application.*Continue application/ }).getAttribute('href'))
+      .toBe('/my-application');
   });
 
   it('uses application history when current intentionally returns null', async () => {
@@ -94,6 +98,25 @@ describe('real member dashboard', () => {
     expect((await screen.findAllByText('MYAIS-APP-2026-000001')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Rejected').length).toBeGreaterThan(0);
     expect(screen.getByText('Recent application')).toBeTruthy();
+  });
+
+  it('renders an ACTIVE associate membership from history when optional payment data is unavailable', async () => {
+    fixture.state.user.role = 'ASSOCIATE_MEMBER';
+    const active = { ...draft, applicationNumber: 'MYAIS-APP-2026-000042', status: 'ACTIVE' };
+    fixture.listApplications.mockResolvedValue([active]);
+    fixture.getCurrentPayment.mockRejectedValue(new Error('optional payment unavailable'));
+    render(<DashboardPage />);
+    expect((await screen.findAllByText('MYAIS-APP-2026-000042')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
+    expect(screen.queryByText('Check your eligibility')).toBeNull();
+  });
+
+  it('still shows the safe page-level error when required profile data fails', async () => {
+    fixture.getProfile.mockRejectedValue(new Error('private database detail'));
+    render(<DashboardPage />);
+    expect(await screen.findByText(/could not load your membership details/i)).toBeTruthy();
+    expect(document.body.textContent).not.toContain('private database detail');
   });
 });
 
