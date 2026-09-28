@@ -108,6 +108,7 @@ describe('real member dashboard', () => {
     render(<DashboardPage />);
     expect((await screen.findAllByText('MYAIS-APP-2026-000042')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+    expect(screen.getByText('Membership Active')).toBeTruthy();
     expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
     expect(screen.queryByText('Check your eligibility')).toBeNull();
   });

@@ -55,7 +55,7 @@ export default function DashboardPage() {
   return <PageContainer className="dashboard-page">
     <PageHeading eyebrow="Member workspace" title="Dashboard"
       description="Your membership profile, application progress and next steps in one place." />
-    <WelcomeBanner role={role} name={displayName} context={latestApplication
+    <WelcomeBanner role={role} name={displayName} membershipActive={latestApplication?.status === 'ACTIVE'} context={latestApplication
       ? `Your latest application is ${statusLabel(latestApplication.status).toLowerCase()}.`
       : 'Complete your profile when you are ready to begin your membership journey.'} />
 
@@ -65,8 +65,7 @@ export default function DashboardPage() {
 
     <section className="dashboard-section" aria-labelledby="account-summary-heading">
       <SectionHeading id="account-summary-heading" title="At a glance"
-        description="Current information from the secure MyAIS API."
-        aside={<StatusBadge tone={statusTone(user.accountStatus)}>{statusLabel(user.accountStatus)}</StatusBadge>} />
+        description="Current information from the secure MyAIS API." />
       {!data && !loadError ? <div className="summary-grid" aria-label="Loading dashboard information">
         {[1, 2, 3].map(item => <div className="summary-card summary-card-loading" key={item} />)}
       </div> : data && <div className="summary-grid">

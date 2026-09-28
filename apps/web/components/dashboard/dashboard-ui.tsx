@@ -16,8 +16,11 @@ export function PageHeading({ eyebrow, title, description }: Readonly<{
   return <header className="page-heading"><p>{eyebrow}</p><h1>{title}</h1><span>{description}</span></header>;
 }
 
-export function WelcomeBanner({ role, name, context }: Readonly<{ role: string; name: string; context: string }>) {
-  return <section className="welcome-banner"><div><span className="welcome-role">{role}</span>
+export function WelcomeBanner({ role, name, context, membershipActive = false }: Readonly<{
+  role: string; name: string; context: string; membershipActive?: boolean;
+}>) {
+  return <section className="welcome-banner"><div><div className="welcome-role-row"><span className="welcome-role">{role}</span>
+    {membershipActive && <span className="welcome-membership-status"><i />Membership Active</span>}</div>
     <h2>Welcome back, {name}.</h2><p>{context}</p></div>
     <span className="welcome-brand" aria-hidden="true"><Image src="/brand/myais-connect-mark.png" width={1200}
       height={1200} sizes="74px" alt="" /></span></section>;
