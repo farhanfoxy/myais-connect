@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Check, LockKeyhole } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StatusTone } from '@/lib/member-status';
 
@@ -37,6 +37,31 @@ export function SummaryCard({ icon: Icon, label, value, supporting }: Readonly<{
 }>) {
   return <article className="summary-card"><span className="summary-icon"><Icon size={19} /></span>
     <div><p>{label}</p><strong>{value}</strong>{supporting && <span>{supporting}</span>}</div></article>;
+}
+
+export interface JourneyStep {
+  label: string;
+  detail: string;
+  state: 'complete' | 'current' | 'attention' | 'upcoming';
+}
+
+export function MembershipJourney({ steps, nextAction, nextHref, compact = false }: Readonly<{
+  steps: JourneyStep[]; nextAction: string; nextHref?: string; compact?: boolean;
+}>) {
+  const completed = steps.filter(step => step.state === 'complete').length;
+  const progress = Math.round((completed / steps.length) * 100);
+  return <section className={cn('journey-card', compact && 'journey-card-compact')} aria-labelledby="membership-journey-heading">
+    <header><div><p>Membership journey</p><h2 id="membership-journey-heading">Your progress</h2></div>
+      {nextHref ? <Link className="journey-next-action" href={nextHref}>Next: <strong>{nextAction}</strong>
+        <ArrowRight size={13} /></Link> : <span className="journey-next-action">Next: <strong>{nextAction}</strong></span>}</header>
+    <div className="journey-meter" role="progressbar" aria-label={`${completed} of ${steps.length} stages complete`}
+      aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={completed}>
+      <i style={{ width: `${progress}%` }} /></div>
+    <ol className="journey-steps">{steps.map((step, index) => <li className={`is-${step.state}`} key={step.label}>
+      <span className="journey-marker" aria-hidden="true">{step.state === 'complete' ? <Check size={15} strokeWidth={2.8} /> :
+        step.state === 'upcoming' ? <LockKeyhole size={13} strokeWidth={2.3} /> : index + 1}</span>
+      <div><strong>{step.label}</strong><small>{step.detail}</small></div></li>)}</ol>
+  </section>;
 }
 
 export function SectionHeading({ id, title, description, aside }: Readonly<{

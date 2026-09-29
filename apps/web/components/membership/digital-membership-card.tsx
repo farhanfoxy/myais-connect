@@ -41,24 +41,26 @@ function MemberPortrait({ photoUrl, name }: Readonly<{ photoUrl: string | null; 
   </span>;
 }
 
-function CardFront({ membership, profileName, gender, canonicalName, photoUrl }: Readonly<{
+export function MembershipCardVisual({ membership, profileName, gender, canonicalName, photoUrl }: Readonly<{
   membership: CurrentMembership; profileName: string | null; gender: MemberProfileResponse['profile']['gender'];
   canonicalName: string | null; photoUrl: string | null;
 }>) {
   const displayName = membershipDisplayName(profileName, canonicalName, gender);
   return <article className="digital-card" aria-labelledby="digital-card-name">
-    <div className="digital-card-glow" aria-hidden="true" />
-    <header><div className="digital-card-brand"><Image src="/brand/myais-connect-mark.png" width={1200} height={1200}
-      sizes="48px" alt="" /><div><strong>MyAIS</strong><span>CONNECT</span></div></div>
-      <span className="digital-card-active"><i />Active member</span></header>
+    <header><div className="digital-card-cobrand"><div className="digital-card-brand">
+      <Image src="/brand/myais-connect-mark.png" width={1200} height={1200} sizes="48px" alt="" />
+      <div><strong>MyAIS</strong><span>CONNECT</span></div></div>
+      <span className="digital-card-brand-divider" aria-hidden="true" />
+      <span className="digital-card-ais-plate"><Image src="/brand/ais-malaysia-chapter-mark.png"
+        width={1763} height={892} sizes="76px" alt="AIS Malaysia Chapter" /></span></div></header>
     <div className="digital-card-member"><MemberPortrait photoUrl={photoUrl} name={displayName} /><div>
       <p>{membership.membershipTypeName || statusLabel(membership.membershipTypeCode)}</p>
-      <h2 id="digital-card-name">{displayName.toUpperCase()}</h2>
-      <span>{membership.membershipNumber || 'Number not available'}</span></div></div>
-    <dl><div><dt>Valid from</dt><dd>{formattedDate(membership.startDate)}</dd></div>
-      <div><dt>Valid until</dt><dd>{membership.expiryDate ? formattedDate(membership.expiryDate) : 'Lifetime'}</dd></div>
-      <div><dt>Verification code</dt><dd>{membershipVerificationCode(membership.membershipNumber)}</dd></div></dl>
-    <footer><span>Association membership credential</span><ShieldCheck aria-hidden="true" /></footer>
+      <h2 id="digital-card-name">{displayName}</h2></div></div>
+    <div className="digital-card-credential"><div><span>Member number</span>
+      <strong>{membership.membershipNumber || 'Number not available'}</strong></div>
+      <dl><div><dt>Valid from</dt><dd>{formattedDate(membership.startDate)}</dd></div>
+        <div><dt>Valid until</dt><dd>{membership.expiryDate ? formattedDate(membership.expiryDate) : 'Lifetime'}</dd></div></dl></div>
+    <footer><span>MyAIS Connect · Association membership credential</span><ShieldCheck aria-hidden="true" /></footer>
   </article>;
 }
 
@@ -106,12 +108,15 @@ export function DigitalMembershipCard() {
       <h2>Your membership card is not available yet.</h2><p>An active Membership record is required before MyAIS can display a card.</p></div>
       <Link className="button button-secondary" href="/my-application/tracker">Application tracker</Link></section>}
     {membership && <div className="membership-card-layout">
-      <div className="membership-card-stage"><CardFront membership={membership} profileName={profile?.profile.fullName ?? null}
+      <div className="membership-card-stage"><MembershipCardVisual membership={membership} profileName={profile?.profile.fullName ?? null}
         gender={profile?.profile.gender ?? null}
         canonicalName={state.user.fullName} photoUrl={state.user.photoUrl} /></div>
       <aside className="membership-card-details" aria-labelledby="membership-details-heading">
         <header><StatusBadge tone="success"><CheckCircle2 size={13} /> Active</StatusBadge>
           <h2 id="membership-details-heading">Membership details</h2><p>This card reflects your current active Membership record.</p></header>
+        <figure className="membership-association-brand"><Image src="/brand/ais-malaysia-chapter-mark.png"
+          width={1763} height={892} sizes="112px" alt="Association for Information Systems Malaysia Chapter logo" />
+          <figcaption><span>Official chapter association</span><strong>AIS Malaysia Chapter</strong></figcaption></figure>
         <dl><div><dt>Membership number</dt><dd>{membership.membershipNumber || 'Not available'}</dd></div>
           <div><dt>Membership type</dt><dd>{membership.membershipTypeName || statusLabel(membership.membershipTypeCode)}</dd></div>
           <div><dt>Status</dt><dd>Active</dd></div><div><dt>Voting eligibility</dt><dd>{membership.votingEligible ? 'Eligible' : 'Not eligible'}</dd></div>

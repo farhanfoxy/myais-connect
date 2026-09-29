@@ -41,14 +41,20 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); Reflect.deleteProperty(navigator, 'share'); });
 
 describe('digital membership card', () => {
-  it('renders the ACTIVE membership projection, dates, voting status and verification code', async () => {
-    render(<DigitalMembershipCard />);
+  it('prioritizes the member number while keeping the legacy verification code secondary', async () => {
+    const view = render(<DigitalMembershipCard />);
     expect((await screen.findAllByText('MYAIS-2026-000123')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Member number')).toBeTruthy();
+    const inlineAisLogo = screen.getByAltText('AIS Malaysia Chapter');
+    expect(inlineAisLogo.closest('.digital-card')).toBeTruthy();
+    expect(inlineAisLogo.getAttribute('src')).toContain('ais-malaysia-chapter-mark.png');
     expect(screen.getAllByText('Associate Member').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 Mar 2026').length).toBeGreaterThan(0);
     expect(screen.getByText('28 Feb 2027')).toBeTruthy();
     expect(screen.getByText('Not eligible')).toBeTruthy();
     expect(screen.getAllByText(/V-000123/).length).toBeGreaterThan(0);
+    expect(view.container.querySelector('.digital-card')?.textContent).not.toContain('V-000123');
+    expect(screen.queryByText('Active member')).toBeNull();
     expect(document.body.textContent).not.toMatch(/user-id|applicationId|membershipTypeId|legacyBase44Id/);
   });
 
@@ -62,33 +68,35 @@ describe('digital membership card', () => {
     expect(screen.queryByText('MYAIS-2026-000123')).toBeNull();
   });
 
-  it('prefers profile name, adds the gender honorific, and uppercases only its card presentation', async () => {
+  it('prefers profile name and presents personal names and honorifics in proper case', async () => {
     render(<DigitalMembershipCard />);
-    expect(await screen.findByRole('heading', { name: 'MS. PROFILE PERSON' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Ms Profile Person' })).toBeTruthy();
     expect(profile.profile.fullName).toBe('Profile Person');
-    expect(membershipDisplayName(null, 'Canonical Name', 'MALE')).toBe('Mr. Canonical Name');
+    expect(membershipDisplayName(null, 'Canonical Name', 'MALE')).toBe('Mr Canonical Name');
     expect(membershipDisplayName(null, 'Canonical Name', 'OTHER')).toBe('Canonical Name');
     expect(membershipDisplayName(null, null, null)).toBe('MyAIS Member');
+    expect(membershipDisplayName('mr achmad farhan', null, null)).toBe('Mr Achmad Farhan');
+    expect(membershipDisplayName('MS. nur aina', null, null)).toBe('Ms Nur Aina');
   });
 
   it('falls back to canonical name when profile is unavailable', async () => {
     fixture.getProfile.mockRejectedValue(new Error('profile unavailable'));
     render(<DigitalMembershipCard />);
-    expect(await screen.findByRole('heading', { name: 'CANONICAL NAME' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Canonical Name' })).toBeTruthy();
     expect(screen.queryByText(/profile unavailable/)).toBeNull();
   });
 
   it('shows initials without a photo and falls back when a canonical photo fails', async () => {
     render(<DigitalMembershipCard />);
-    expect((await screen.findByLabelText('Initials for Ms. Profile Person')).textContent).toBe('PP');
+    expect((await screen.findByLabelText('Initials for Ms Profile Person')).textContent).toBe('PP');
     cleanup();
     fixture.user.photoUrl = 'https://images.example.test/member.jpg';
     render(<DigitalMembershipCard />);
-    const photo = await screen.findByAltText('Profile photo of Ms. Profile Person');
+    const photo = await screen.findByAltText('Profile photo of Ms Profile Person');
     expect(photo.getAttribute('src')).toBe('https://images.example.test/member.jpg');
     fireEvent.error(photo);
-    expect((await screen.findByLabelText('Initials for Ms. Profile Person')).textContent).toBe('PP');
-    expect(memberInitials('Mr. Ahmad Bin Ali')).toBe('AA');
+    expect((await screen.findByLabelText('Initials for Ms Profile Person')).textContent).toBe('PP');
+    expect(memberInitials('Mr Ahmad Bin Ali')).toBe('AA');
   });
 
   it('prints with browser facilities and leaves download honestly unavailable', async () => {
@@ -103,7 +111,7 @@ describe('digital membership card', () => {
     const user = userEvent.setup(); render(<DigitalMembershipCard />);
     await user.click(await screen.findByRole('button', { name: 'Share details' }));
     expect(fixture.share).toHaveBeenCalledWith({ title: 'MyAIS Membership',
-      text: 'MyAIS Membership\nMs. Profile Person\nMYAIS-2026-000123' });
+      text: 'MyAIS Membership\nMs Profile Person\nMYAIS-2026-000123' });
     expect(JSON.stringify(fixture.share.mock.calls)).not.toMatch(/jwt|user-id|https?:\/\//);
   });
 

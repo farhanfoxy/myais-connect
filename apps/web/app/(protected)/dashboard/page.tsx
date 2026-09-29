@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
-  CalendarDays, CircleUserRound, CreditCard, FileClock, FileText, IdCard,
-  Megaphone, ShieldCheck, UserRound,
+  CalendarDays, CircleUserRound, CreditCard, FileClock, FileText, IdCard, ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
-  ContentCard, PageContainer, PageHeading, QuickActionTile, SectionHeading, StatusBadge,
+  ContentCard, MembershipJourney, PageContainer, PageHeading, SectionHeading, StatusBadge,
   SummaryCard, WelcomeBanner,
 } from '@/components/dashboard/dashboard-ui';
+import { MembershipCardVisual } from '@/components/membership/digital-membership-card';
+import type { JourneyStep } from '@/components/dashboard/dashboard-ui';
 import type { CurrentMembership, CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { applicationAction, statusLabel, statusTone } from '@/lib/member-status';
@@ -26,6 +28,36 @@ interface DashboardData {
 
 function readableDate(value: string): string {
   return new Intl.DateTimeFormat('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
+}
+
+const reviewInProgress = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', 'RECOMMENDED_FOR_APPROVAL']);
+const reviewComplete = new Set(['APPROVED_PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'PAYMENT_UNDER_VERIFICATION', 'ACTIVE']);
+
+function membershipJourney(data: DashboardData, latestApplication: MembershipApplicationSummary | null): JourneyStep[] {
+  const applicationStatus = latestApplication?.status;
+  const paymentStatus = data.payment?.payment?.status;
+  const membershipActive = data.membership?.status === 'ACTIVE';
+  const profileComplete = data.profile.profile.profileCompletionPercentage === 100;
+  const applicationSubmitted = membershipActive || Boolean(latestApplication?.submittedAt) ||
+    Boolean(applicationStatus && applicationStatus !== 'DRAFT');
+  const reviewApproved = membershipActive || Boolean(applicationStatus && reviewComplete.has(applicationStatus));
+  const paymentComplete = membershipActive || paymentStatus === 'VERIFIED';
+
+  return [
+    { label: 'Profile', detail: profileComplete ? 'Complete' : `${data.profile.profile.profileCompletionPercentage}% complete`,
+      state: profileComplete ? 'complete' : 'current' },
+    { label: 'Application', detail: !latestApplication ? 'Not started' : applicationSubmitted ? 'Submitted' : 'Draft in progress',
+      state: applicationSubmitted ? 'complete' : profileComplete ? 'current' : 'upcoming' },
+    { label: 'Review', detail: applicationStatus === 'REJECTED' ? 'Not approved' : reviewApproved ? 'Approved' :
+      applicationStatus && reviewInProgress.has(applicationStatus) ? statusLabel(applicationStatus) : 'Not started',
+      state: applicationStatus === 'REJECTED' ? 'attention' : reviewApproved ? 'complete' :
+        applicationStatus && reviewInProgress.has(applicationStatus) ? 'current' : 'upcoming' },
+    { label: 'Payment', detail: paymentComplete ? 'Verified' : paymentStatus ? statusLabel(paymentStatus) :
+      applicationStatus === 'APPROVED_PENDING_PAYMENT' ? 'Ready to submit' : 'Not available',
+      state: paymentComplete ? 'complete' : data.payment || applicationStatus === 'APPROVED_PENDING_PAYMENT' ? 'current' : 'upcoming' },
+    { label: 'Membership', detail: membershipActive ? 'Active' : data.membershipUnavailable ? 'Unavailable' : 'Not active',
+      state: membershipActive ? 'complete' : 'upcoming' },
+  ];
 }
 
 export default function DashboardPage() {
@@ -56,9 +88,17 @@ export default function DashboardPage() {
   const latestApplication = data?.currentApplication ?? data?.applications[0] ?? null;
   const actionLabel = applicationAction(latestApplication?.status);
   const isCurrent = Boolean(data?.currentApplication);
-  const paymentAction = data?.payment?.payment?.status === 'REJECTED' ? 'Resubmit payment' :
-    latestApplication?.status === 'APPROVED_PENDING_PAYMENT' ? 'Submit payment' :
-      data?.payment ? 'View payment details' : 'No payment due';
+  const nextAction = data ? data.profile.profile.profileCompletionPercentage < 100 ? 'Complete profile' :
+    data.membership?.status === 'ACTIVE' ? 'View membership card' : data.membershipUnavailable && latestApplication?.status === 'ACTIVE' ?
+      'Membership temporarily unavailable' :
+      applicationAction(latestApplication?.status) : 'Loading progress';
+  const activeMembership = data?.membership?.status === 'ACTIVE' ? data.membership : null;
+  const journey = data ? membershipJourney(data, latestApplication) : [];
+  const nextHref = data ? data.profile.profile.profileCompletionPercentage < 100 ? '/profile' :
+    activeMembership ? '/my-card' : latestApplication?.status === 'ADDITIONAL_INFORMATION_REQUIRED' ? '/my-application/respond' :
+      latestApplication?.status === 'APPROVED_PENDING_PAYMENT' || latestApplication?.status === 'PAYMENT_SUBMITTED' ||
+        latestApplication?.status === 'PAYMENT_UNDER_VERIFICATION' ? '/my-application/payment' :
+        latestApplication?.status && latestApplication.status !== 'DRAFT' ? '/my-application/tracker' : '/my-application' : undefined;
 
   return <PageContainer className="dashboard-page">
     <PageHeading eyebrow="Member workspace" title="Dashboard"
@@ -70,6 +110,27 @@ export default function DashboardPage() {
     {loadError && <div className="data-message data-message-error" role="alert">
       We could not load your membership details. Refresh the page to try again.
     </div>}
+
+    {data && (activeMembership ? <section className="active-member-priority" aria-label="Active membership overview">
+      <MembershipJourney steps={journey} nextAction={nextAction} nextHref={nextHref} compact />
+      <div className="dashboard-card-highlight"><header><div><p>Digital membership card</p>
+        <h2>Your member identity</h2></div><Link className="dashboard-card-link" href="/my-card">View full card</Link></header>
+        <MembershipCardVisual membership={activeMembership} profileName={data.profile.profile.fullName}
+          gender={data.profile.profile.gender} canonicalName={user.fullName} photoUrl={user.photoUrl} /></div>
+    </section> : <MembershipJourney steps={journey} nextAction={nextAction} nextHref={nextHref} />)}
+
+    {data?.membershipUnavailable && <div className="dashboard-inline-notice" role="status">
+      Membership card temporarily unavailable. Your other dashboard information is still available.
+    </div>}
+
+    <section className="dashboard-section event-showcase" aria-labelledby="featured-events-heading">
+      <SectionHeading id="featured-events-heading" title="Featured events"
+        description="Discover upcoming MyAIS and AIS professional activities." />
+      <div className="event-empty-state"><span className="event-empty-icon"><CalendarDays size={23} /></span><div>
+        <h3>Event listings are coming soon</h3>
+        <p>No live event source is available yet. Upcoming events will appear here when the Events workspace is connected.</p></div>
+        <button className="button button-secondary" disabled>View more events</button></div>
+    </section>
 
     <section className="dashboard-section" aria-labelledby="account-summary-heading">
       <SectionHeading id="account-summary-heading" title="At a glance"
@@ -91,25 +152,6 @@ export default function DashboardPage() {
         {data.membership && <SummaryCard icon={IdCard} label="Membership" value={data.membership.membershipTypeName ||
           statusLabel(data.membership.membershipTypeCode)} supporting={data.membership.membershipNumber || 'Membership number unavailable'} />}
       </div>}
-    </section>
-
-    <section className="dashboard-section" aria-labelledby="quick-actions-heading">
-      <SectionHeading id="quick-actions-heading" title="Quick actions"
-        description="Access your membership details and available next steps." />
-      <div className="quick-action-grid">
-        <QuickActionTile icon={UserRound} label="Profile" supporting="View and update" href="/profile" />
-        <QuickActionTile icon={FileText} label={latestApplication ? 'My application' : 'Apply'}
-          supporting={actionLabel} href="/my-application" />
-        <QuickActionTile icon={FileClock} label="Application tracker" supporting="View progress" href="/my-application/tracker" />
-        <QuickActionTile icon={CreditCard} label="Payment" supporting={paymentAction}
-          {...(data?.payment ? { href: '/my-application/payment' } : { disabled: true })} />
-        <QuickActionTile icon={IdCard} label="Membership card"
-          supporting={data?.membership ? data.membership.membershipNumber || 'View active membership' :
-            data?.membershipUnavailable ? 'Temporarily unavailable' : 'No active membership'}
-          {...(data?.membership ? { href: '/my-card' } : { disabled: true })} />
-        <QuickActionTile icon={Megaphone} label="Announcements" supporting="Coming in a later phase" disabled />
-        <QuickActionTile icon={CalendarDays} label="Events" supporting="Coming in a later phase" disabled />
-      </div>
     </section>
 
     <section className="dashboard-section" aria-labelledby="current-application-heading">

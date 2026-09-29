@@ -35,6 +35,12 @@ beforeEach(() => {
 });
 
 describe('responsive application shell interactions', () => {
+  it('links desktop and mobile identity controls directly to profile', () => {
+    render(<AppShell><p>Protected content</p></AppShell>);
+    expect(screen.getByRole('link', { name: "View Aisyah Rahman's profile" }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('link', { name: 'View profile' }).getAttribute('href')).toBe('/profile');
+  });
+
   it('opens the membership menu and restores trigger focus when Escape closes it', async () => {
     const user = userEvent.setup();
     render(<AppShell><p>Protected content</p></AppShell>);
@@ -62,6 +68,14 @@ describe('responsive application shell interactions', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'MyAIS navigation menu' })).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('links the drawer identity directly to profile', async () => {
+    const user = userEvent.setup();
+    render(<AppShell><p>Protected content</p></AppShell>);
+    await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    const profileLinks = screen.getAllByRole('link', { name: 'View profile' });
+    expect(profileLinks.some(link => link.getAttribute('href') === '/profile')).toBe(true);
   });
 
   it('keeps logout in the account menu and returns to login', async () => {

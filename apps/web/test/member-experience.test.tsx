@@ -89,7 +89,13 @@ describe('real member dashboard', () => {
     expect(screen.getByText('Welcome back, Aisyah Rahman.')).toBeTruthy();
     expect(await screen.findByText('100%')).toBeTruthy();
     expect(screen.getAllByText('No application record found').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /Profile/ }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('heading', { name: 'Your progress' })).toBeTruthy();
+    expect(screen.getByText(/Next:/).textContent).toContain('Start application');
+    expect(screen.getByLabelText('1 of 5 stages complete')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Next:.*Start application/ }).getAttribute('href')).toBe('/my-application');
+    expect(screen.getByRole('heading', { name: 'Featured events' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'View more events' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('heading', { name: 'Quick actions' })).toBeNull();
   });
 
   it('renders a current application with readable status and the correct next action', async () => {
@@ -98,7 +104,7 @@ describe('real member dashboard', () => {
     render(<DashboardPage />);
     expect(await screen.findByText('Draft application')).toBeTruthy();
     expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /My application.*Continue application/ }).getAttribute('href'))
+    expect(screen.getByRole('link', { name: /Next:.*Continue application/ }).getAttribute('href'))
       .toBe('/my-application');
   });
 
@@ -124,17 +130,19 @@ describe('real member dashboard', () => {
     expect((await screen.findAllByText('MYAIS-APP-2026-000042')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
     expect(screen.getByText('Membership Active')).toBeTruthy();
+    expect(screen.getByLabelText('5 of 5 stages complete')).toBeTruthy();
+    expect(screen.getByText(/Next:/).textContent).toContain('View membership card');
     expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
     expect(screen.queryByText('Check your eligibility')).toBeNull();
   });
 
-  it('links the state-aware payment quick action when payment data is available', async () => {
+  it('links the state-aware journey action when payment data is available', async () => {
     const approved = { ...draft, applicationNumber: payable.applicationNumber, status: 'APPROVED_PENDING_PAYMENT' };
     fixture.getCurrentApplication.mockResolvedValue(approved);
     fixture.listApplications.mockResolvedValue([approved]);
     fixture.getCurrentPayment.mockResolvedValue(payable);
     render(<DashboardPage />);
-    expect((await screen.findByRole('link', { name: /Payment.*Submit payment/ })).getAttribute('href'))
+    expect((await screen.findByRole('link', { name: /Next:.*Make payment/ })).getAttribute('href'))
       .toBe('/my-application/payment');
   });
 
@@ -144,13 +152,14 @@ describe('real member dashboard', () => {
       expiryDate: null, votingEligible: false, activatedAt: '2026-01-01T00:00:00.000Z' });
     render(<DashboardPage />);
     expect((await screen.findAllByText('MYAIS-2026-000123')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /Membership card.*MYAIS-2026-000123/ }).getAttribute('href')).toBe('/my-card');
+    expect(screen.getByRole('link', { name: 'View full card' }).getAttribute('href')).toBe('/my-card');
+    expect(screen.getByLabelText('5 of 5 stages complete')).toBeTruthy();
   });
 
   it('isolates membership API failure from required dashboard data', async () => {
     fixture.getCurrentMembership.mockRejectedValue(new Error('private membership error'));
     render(<DashboardPage />);
-    expect(await screen.findByText('Temporarily unavailable')).toBeTruthy();
+    expect(await screen.findByText(/Membership card temporarily unavailable/)).toBeTruthy();
     expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
     expect(document.body.textContent).not.toContain('private membership error');
   });

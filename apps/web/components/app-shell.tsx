@@ -85,10 +85,12 @@ function UserMenu({ name, email, role, initial, signOut }: Readonly<{
   const close = () => setOpen(false);
   useDismissibleMenu(open, close, triggerRef, panelRef);
   return <div className="top-nav-menu user-menu-wrap">
-    <button ref={triggerRef} className={cn('user-menu-trigger', open && 'is-open')}
-      aria-label="Open account menu" aria-haspopup="menu" aria-expanded={open}
-      onClick={() => setOpen(value => !value)}><span className="user-avatar">{initial}</span>
-      <span className="user-menu-name">{name}</span><ChevronDown size={15} /></button>
+    <div className={cn('user-menu-trigger', open && 'is-open')}>
+      <Link className="user-profile-link" href="/profile" aria-label={`View ${name}'s profile`}>
+        <span className="user-avatar">{initial}</span><span className="user-menu-name">{name}</span></Link>
+      <button ref={triggerRef} className="account-menu-button" aria-label="Open account menu"
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+        <ChevronDown size={15} /></button></div>
     {open && <div ref={panelRef} className="nav-popover user-popover" role="menu" tabIndex={-1}
       aria-label="Account menu"><div className="user-popover-identity"><span className="user-avatar user-avatar-large">
         {initial}</span><div><strong>{name}</strong><span>{email}</span></div></div>
@@ -152,8 +154,10 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       <div className="header-tools"><button className="header-icon-button" aria-label="Notifications"
         title="Notifications" onClick={() => announce('Notifications')}><Bell size={19} /></button>
         <UserMenu name={displayName} email={user.email} role={role} initial={initial} signOut={signOut} />
-        <button className="mobile-account-button" aria-label="Open navigation menu"
-          onClick={event => openDrawer(event.currentTarget)}><span className="user-avatar">{initial}</span></button></div>
+        <Link className="mobile-account-button" href="/profile" aria-label="View profile">
+          <span className="user-avatar">{initial}</span></Link>
+        <button className="mobile-menu-button" aria-label="Open navigation menu"
+          onClick={event => openDrawer(event.currentTarget)}><Menu size={20} /></button></div>
     </div></header>
 
     <main className="app-content">{children}</main>
@@ -174,8 +178,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     }}><aside className="mobile-drawer" role="dialog" aria-modal="true" aria-label="MyAIS navigation menu">
       <div className="drawer-header"><BrandMark /><button ref={closeButtonRef} aria-label="Close navigation"
         onClick={closeDrawer}><X /></button></div>
-      <div className="drawer-identity"><span className="user-avatar user-avatar-large">{initial}</span>
-        <div><strong>{displayName}</strong><span>{role}</span></div></div>
+      <Link className="drawer-identity" href="/profile" onClick={closeDrawer} aria-label="View profile">
+        <span className="user-avatar user-avatar-large">{initial}</span>
+        <div><strong>{displayName}</strong><span>{role}</span></div></Link>
       <nav className="drawer-navigation" aria-label="More navigation"><p>Workspace</p>
         <Link className={cn('drawer-link', pathname === home && 'is-active')} href={home} onClick={closeDrawer}>
           <LayoutDashboard size={19} /><span>{isCommittee ? 'Admin overview' : 'Dashboard'}</span></Link>
