@@ -11,6 +11,7 @@ const fixture = vi.hoisted(() => ({
   refresh: vi.fn(async () => ({ status: 'authenticated' })),
   getProfile: vi.fn(), updateProfile: vi.fn(), getCurrentApplication: vi.fn(),
   listApplications: vi.fn(), getCurrentPayment: vi.fn(),
+  getCurrentMembership: vi.fn(),
   state: {
     status: 'authenticated' as const,
     user: { id: 'user-1', email: 'member@example.test', fullName: 'Aisyah Rahman', photoUrl: null,
@@ -27,6 +28,7 @@ vi.mock('@/lib/member-api', () => ({
     getProfile: fixture.getProfile, updateProfile: fixture.updateProfile,
     getCurrentApplication: fixture.getCurrentApplication, listApplications: fixture.listApplications,
     getCurrentPayment: fixture.getCurrentPayment,
+    getCurrentMembership: fixture.getCurrentMembership,
   }),
 }));
 
@@ -78,6 +80,7 @@ beforeEach(() => {
   fixture.getCurrentApplication.mockReset().mockResolvedValue(null);
   fixture.listApplications.mockReset().mockResolvedValue([]);
   fixture.getCurrentPayment.mockReset().mockResolvedValue(null);
+  fixture.getCurrentMembership.mockReset().mockResolvedValue(null);
 });
 
 describe('real member dashboard', () => {
@@ -113,6 +116,10 @@ describe('real member dashboard', () => {
     const active = { ...draft, applicationNumber: 'MYAIS-APP-2026-000042', status: 'ACTIVE' };
     fixture.listApplications.mockResolvedValue([active]);
     fixture.getCurrentPayment.mockRejectedValue(new Error('optional payment unavailable'));
+    fixture.getCurrentMembership.mockResolvedValue({ membershipNumber: 'MYAIS-2026-000042',
+      membershipTypeCode: 'ASSOCIATE', membershipTypeName: 'Associate Member',
+      status: 'ACTIVE', startDate: '2026-01-01', expiryDate: null, votingEligible: false,
+      activatedAt: '2026-01-01T00:00:00.000Z' });
     render(<DashboardPage />);
     expect((await screen.findAllByText('MYAIS-APP-2026-000042')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
@@ -129,6 +136,23 @@ describe('real member dashboard', () => {
     render(<DashboardPage />);
     expect((await screen.findByRole('link', { name: /Payment.*Submit payment/ })).getAttribute('href'))
       .toBe('/my-application/payment');
+  });
+
+  it('sources membership number and card availability from the membership API', async () => {
+    fixture.getCurrentMembership.mockResolvedValue({ membershipNumber: 'MYAIS-2026-000123',
+      membershipTypeCode: 'ASSOCIATE', membershipTypeName: 'Associate Member', status: 'ACTIVE', startDate: '2026-01-01',
+      expiryDate: null, votingEligible: false, activatedAt: '2026-01-01T00:00:00.000Z' });
+    render(<DashboardPage />);
+    expect((await screen.findAllByText('MYAIS-2026-000123')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: /Membership card.*MYAIS-2026-000123/ }).getAttribute('href')).toBe('/my-card');
+  });
+
+  it('isolates membership API failure from required dashboard data', async () => {
+    fixture.getCurrentMembership.mockRejectedValue(new Error('private membership error'));
+    render(<DashboardPage />);
+    expect(await screen.findByText('Temporarily unavailable')).toBeTruthy();
+    expect(screen.queryByText(/could not load your membership details/i)).toBeNull();
+    expect(document.body.textContent).not.toContain('private membership error');
   });
 
   it('still shows the safe page-level error when required profile data fails', async () => {

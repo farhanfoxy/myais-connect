@@ -12,6 +12,7 @@ import {
 
 const fixture = vi.hoisted(() => ({
   listApplications: vi.fn(), authorizeInformationResponseUpload: vi.fn(), respondToInformationRequest: vi.fn(),
+  getCurrentMembership: vi.fn(),
   replace: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ vi.mock('@/lib/member-api', () => ({ createMemberApiClient: () => ({
   listApplications: fixture.listApplications,
   authorizeInformationResponseUpload: fixture.authorizeInformationResponseUpload,
   respondToInformationRequest: fixture.respondToInformationRequest,
+  getCurrentMembership: fixture.getCurrentMembership,
 }) }));
 
 function application(status: string, overrides: Partial<MembershipApplicationSummary> = {}): MembershipApplicationSummary {
@@ -47,6 +49,7 @@ beforeEach(() => {
     id: openRequest.id, status: 'RESPONDED', respondedAt: '2026-10-02T00:00:00.000Z',
     applicationStatus: 'UNDER_REVIEW', attachmentUploaded: false,
   });
+  fixture.getCurrentMembership.mockReset().mockResolvedValue(null);
   fixture.replace.mockReset();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -70,6 +73,15 @@ describe('application tracker', () => {
     const current = document.querySelector('[aria-current="step"]');
     expect(current).not.toBeNull();
     expect(current?.textContent).toContain(stage);
+  });
+
+  it('links an ACTIVE application to the card only when an ACTIVE membership is confirmed', async () => {
+    fixture.listApplications.mockResolvedValue([application('ACTIVE')]);
+    fixture.getCurrentMembership.mockResolvedValue({ membershipNumber: 'MYAIS-2026-000123',
+      membershipTypeCode: 'ASSOCIATE', membershipTypeName: 'Associate Member', status: 'ACTIVE', startDate: '2026-01-01',
+      expiryDate: '2026-12-31', votingEligible: false, activatedAt: '2026-01-01T00:00:00.000Z' });
+    render(<ApplicationTracker />);
+    expect((await screen.findByRole('link', { name: /View membership card/ })).getAttribute('href')).toBe('/my-card');
   });
 
   it('keeps rejected outside the progress stages and renders its reason', async () => {

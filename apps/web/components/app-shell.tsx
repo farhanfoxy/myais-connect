@@ -19,7 +19,7 @@ const membershipItems: MenuItem[] = [
   { label: 'My application', icon: FileText, href: '/my-application' },
   { label: 'Application tracker', icon: FileClock, href: '/my-application/tracker' },
   { label: 'Payment', icon: CreditCard, href: '/my-application/payment' },
-  { label: 'Membership card', icon: IdCard },
+  { label: 'Membership card', icon: IdCard, href: '/my-card' },
 ];
 const memberDrawerItems: MenuItem[] = [...membershipItems,
   { label: 'Events', icon: CalendarDays }, { label: 'Announcements', icon: Megaphone }];
@@ -145,7 +145,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <Link className={cn('top-nav-link', pathname === home && 'is-active')} href={home}>
           {isCommittee ? 'Overview' : 'Dashboard'}</Link>
         {isCommittee ? <button className="top-nav-link" onClick={() => announce('Review workspace')}>Reviews</button> :
-          <MembershipMenu announce={announce} active={pathname === '/profile' || pathname.startsWith('/my-application')} />}
+          <MembershipMenu announce={announce} active={pathname === '/profile' || pathname === '/my-card' || pathname.startsWith('/my-application')} />}
         <button className="top-nav-link" onClick={() => announce('Events')}>Events</button>
         <button className="top-nav-link" onClick={() => announce('Announcements')}>News</button>
       </nav>
@@ -162,7 +162,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       <Link className={cn(pathname === home && 'is-active')} href={home}><House /><span>Dashboard</span></Link>
       <Link className={cn(pathname.startsWith('/my-application') && 'is-active')} href="/my-application">
         <FileText /><span>Application</span></Link>
-      <button onClick={() => announce('Membership card')}><IdCard /><span>Card</span></button>
+      <Link className={cn(pathname === '/my-card' && 'is-active')} href="/my-card"><IdCard /><span>Card</span></Link>
       <button onClick={event => openDrawer(event.currentTarget)}><Menu /><span>More</span></button>
     </nav>
 

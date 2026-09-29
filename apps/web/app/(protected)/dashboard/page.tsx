@@ -10,7 +10,7 @@ import {
   ContentCard, PageContainer, PageHeading, QuickActionTile, SectionHeading, StatusBadge,
   SummaryCard, WelcomeBanner,
 } from '@/components/dashboard/dashboard-ui';
-import type { CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
+import type { CurrentMembership, CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { applicationAction, statusLabel, statusTone } from '@/lib/member-status';
 import { humanizeEnum } from '@/lib/roles';
@@ -20,6 +20,8 @@ interface DashboardData {
   currentApplication: MembershipApplicationSummary | null;
   applications: MembershipApplicationSummary[];
   payment: CurrentPayment | null;
+  membership: CurrentMembership | null;
+  membershipUnavailable: boolean;
 }
 
 function readableDate(value: string): string {
@@ -36,10 +38,13 @@ export default function DashboardPage() {
     let active = true;
     const api = createMemberApiClient();
     const optionalPayment = api.getCurrentPayment().catch(() => null);
+    const optionalMembership = api.getCurrentMembership().then(membership => ({ membership, unavailable: false }))
+      .catch(() => ({ membership: null, unavailable: true }));
     void Promise.all([
-      api.getProfile(), api.getCurrentApplication(), api.listApplications(), optionalPayment,
-    ]).then(([profile, currentApplication, applications, payment]) => {
-      if (active) setData({ profile, currentApplication, applications, payment });
+      api.getProfile(), api.getCurrentApplication(), api.listApplications(), optionalPayment, optionalMembership,
+    ]).then(([profile, currentApplication, applications, payment, membershipResult]) => {
+      if (active) setData({ profile, currentApplication, applications, payment,
+        membership: membershipResult.membership, membershipUnavailable: membershipResult.unavailable });
     }).catch(() => { if (active) setLoadError(true); });
     return () => { active = false; };
   }, [state.status]);
@@ -58,7 +63,7 @@ export default function DashboardPage() {
   return <PageContainer className="dashboard-page">
     <PageHeading eyebrow="Member workspace" title="Dashboard"
       description="Your membership profile, application progress and next steps in one place." />
-    <WelcomeBanner role={role} name={displayName} membershipActive={latestApplication?.status === 'ACTIVE'} context={latestApplication
+    <WelcomeBanner role={role} name={displayName} membershipActive={data?.membership?.status === 'ACTIVE'} context={latestApplication
       ? `Your latest application is ${statusLabel(latestApplication.status).toLowerCase()}.`
       : 'Complete your profile when you are ready to begin your membership journey.'} />
 
@@ -83,6 +88,8 @@ export default function DashboardPage() {
         {data.payment && <SummaryCard icon={CreditCard} label="Payment"
           value={statusLabel(data.payment.payment?.status ?? data.payment.applicationStatus)}
           supporting={data.payment.payment?.paymentReference ?? 'Payment linked to current application'} />}
+        {data.membership && <SummaryCard icon={IdCard} label="Membership" value={data.membership.membershipTypeName ||
+          statusLabel(data.membership.membershipTypeCode)} supporting={data.membership.membershipNumber || 'Membership number unavailable'} />}
       </div>}
     </section>
 
@@ -96,7 +103,10 @@ export default function DashboardPage() {
         <QuickActionTile icon={FileClock} label="Application tracker" supporting="View progress" href="/my-application/tracker" />
         <QuickActionTile icon={CreditCard} label="Payment" supporting={paymentAction}
           {...(data?.payment ? { href: '/my-application/payment' } : { disabled: true })} />
-        <QuickActionTile icon={IdCard} label="Membership card" supporting="Coming in a later phase" disabled />
+        <QuickActionTile icon={IdCard} label="Membership card"
+          supporting={data?.membership ? data.membership.membershipNumber || 'View active membership' :
+            data?.membershipUnavailable ? 'Temporarily unavailable' : 'No active membership'}
+          {...(data?.membership ? { href: '/my-card' } : { disabled: true })} />
         <QuickActionTile icon={Megaphone} label="Announcements" supporting="Coming in a later phase" disabled />
         <QuickActionTile icon={CalendarDays} label="Events" supporting="Coming in a later phase" disabled />
       </div>

@@ -6,7 +6,7 @@ import {
   AlertCircle, ArrowRight, Check, Clock3, FileClock, MessageSquareText, RefreshCw, ShieldCheck,
 } from 'lucide-react';
 import { PageContainer, PageHeading, StatusBadge } from '@/components/dashboard/dashboard-ui';
-import type { MembershipApplicationSummary } from '@/lib/api-client';
+import type { CurrentMembership, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { statusLabel, statusTone } from '@/lib/member-status';
 import { cn } from '@/lib/utils';
@@ -57,7 +57,9 @@ function TrackerProgress({ status }: Readonly<{ status: string }>) {
   </section>;
 }
 
-function TrackerAction({ application }: Readonly<{ application: MembershipApplicationSummary }>) {
+function TrackerAction({ application, membership }: Readonly<{
+  application: MembershipApplicationSummary; membership: CurrentMembership | null;
+}>) {
   const hasRequest = application.openInformationRequests.length > 0;
   if (application.status === 'DRAFT') return <div className="tracker-action-panel"><div><strong>Continue your application</strong>
     <p>Your draft remains editable until it is submitted.</p></div><Link className="button button-primary" href="/my-application">
@@ -84,21 +86,26 @@ function TrackerAction({ application }: Readonly<{ application: MembershipApplic
   const showsPayment = ['APPROVED_PENDING_PAYMENT', 'PAYMENT_SUBMITTED', 'PAYMENT_UNDER_VERIFICATION', 'ACTIVE']
     .includes(application.status);
   return <div className="tracker-action-panel"><div><strong>{content[0]}</strong><p>{content[1]}</p></div>
-    {showsPayment && <Link className="button button-primary" href="/my-application/payment">
+    {application.status === 'ACTIVE' && membership ? <Link className="button button-primary" href="/my-card">
+      View membership card <ArrowRight size={17} /></Link> : showsPayment && <Link className="button button-primary" href="/my-application/payment">
       {paymentLabel} <ArrowRight size={17} /></Link>}</div>;
 }
 
 export function ApplicationTracker() {
   const api = useMemo(() => createMemberApiClient(), []);
   const [applications, setApplications] = useState<MembershipApplicationSummary[] | null>(null);
+  const [membership, setMembership] = useState<CurrentMembership | null>(null);
   const [error, setError] = useState(false);
   const load = useCallback(() => {
     setError(false); setApplications(null);
-    api.listApplications().then(setApplications).catch(() => { setError(true); setApplications([]); });
+    Promise.all([api.listApplications(), api.getCurrentMembership().catch(() => null)])
+      .then(([nextApplications, nextMembership]) => { setApplications(nextApplications); setMembership(nextMembership); })
+      .catch(() => { setError(true); setApplications([]); });
   }, [api]);
   useEffect(() => {
     let active = true;
-    api.listApplications().then(result => { if (active) setApplications(result); })
+    Promise.all([api.listApplications(), api.getCurrentMembership().catch(() => null)])
+      .then(([result, currentMembership]) => { if (active) { setApplications(result); setMembership(currentMembership); } })
       .catch(() => { if (active) { setError(true); setApplications([]); } });
     return () => { active = false; };
   }, [api]);
@@ -140,7 +147,7 @@ export function ApplicationTracker() {
           <span><ShieldCheck /></span><div><div><strong>{statusLabel(review.decision)}</strong><time dateTime={review.createdAt}>
             {formattedDate(review.createdAt)}</time></div>{review.remarks?.trim() && <p>{review.remarks}</p>}
             <small>By {review.reviewerName || 'MyAIS Committee'}</small></div></li>)}</ol></section>}
-      <TrackerAction application={application} />
+      <TrackerAction application={application} membership={membership} />
     </>}
   </PageContainer>;
 }

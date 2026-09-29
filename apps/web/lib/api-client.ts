@@ -150,6 +150,17 @@ export interface PaymentSubmissionResult {
   supersededReceiptCleanupPending: boolean;
 }
 
+export interface CurrentMembership {
+  membershipNumber: string | null;
+  membershipTypeCode: string | null;
+  membershipTypeName: string | null;
+  status: 'ACTIVE';
+  startDate: string | null;
+  expiryDate: string | null;
+  votingEligible: boolean | null;
+  activatedAt: string | null;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -262,6 +273,8 @@ export class ApiClient {
   }
 
   getCurrentPayment(): Promise<CurrentPayment | null> { return this.request('/payments/current'); }
+
+  getCurrentMembership(): Promise<CurrentMembership | null> { return this.request('/memberships/current'); }
 
   authorizePaymentReceiptUpload(input: {
     originalFileName: string; mimeType: string; fileSize: number;

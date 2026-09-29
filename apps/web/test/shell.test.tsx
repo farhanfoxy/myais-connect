@@ -96,7 +96,7 @@ describe('responsive application shell interactions', () => {
     expect(screen.getByRole('link', { name: 'My application' }).className).toContain('is-active');
   });
 
-  it('enables tracker and payment while membership card remains deferred', async () => {
+  it('enables tracker, payment and membership card routes', async () => {
     fixture.pathname = '/my-application/tracker';
     const user = userEvent.setup();
     render(<AppShell><p>Tracker content</p></AppShell>);
@@ -105,6 +105,13 @@ describe('responsive application shell interactions', () => {
     expect(screen.getByRole('menuitem', { name: 'Application tracker' }).getAttribute('href'))
       .toBe('/my-application/tracker');
     expect(screen.getByRole('menuitem', { name: 'Payment' }).getAttribute('href')).toBe('/my-application/payment');
-    expect(screen.getByRole('menuitem', { name: /Membership card.*Soon/ }).getAttribute('href')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Membership card' }).getAttribute('href')).toBe('/my-card');
+  });
+
+  it('makes the mobile Card control a direct active route', () => {
+    fixture.pathname = '/my-card';
+    render(<AppShell><p>Card content</p></AppShell>);
+    const cardLinks = screen.getAllByRole('link', { name: 'Card' });
+    expect(cardLinks.some(link => link.getAttribute('href') === '/my-card' && link.className.includes('is-active'))).toBe(true);
   });
 });
