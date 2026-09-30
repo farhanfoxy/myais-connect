@@ -182,7 +182,8 @@ export function MemberPayment() {
 
   if (submitted) return <PageContainer className="payment-page"><PageHeading eyebrow="Membership" title="Payment submitted successfully"
     description="Your payment is now ready for MyAIS verification." />
-    <section className="payment-success"><span><CheckCircle2 /></span><StatusBadge tone="info">Awaiting verification</StatusBadge>
+    <section className="payment-success"><span className="payment-success-icon"><CheckCircle2 /></span>
+      <span className="payment-submitted-status"><i aria-hidden="true" />Awaiting verification</span>
       <h2>Thank you. Your receipt was submitted securely.</h2><p>No further action is needed while the MyAIS team verifies your payment.</p>
       <dl><div><dt>Payment reference</dt><dd>{submitted.paymentReference || 'Not assigned'}</dd></div>
         <div><dt>Status</dt><dd>{statusLabel(submitted.status)}</dd></div>

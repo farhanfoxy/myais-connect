@@ -72,6 +72,10 @@ describe('member payment page', () => {
     await user.upload(screen.getByLabelText('Choose receipt'), new File(['pdf'], 'receipt.pdf', { type: 'application/pdf' }));
     await user.click(screen.getByRole('button', { name: 'Submit payment' }));
     expect(await screen.findByText('Thank you. Your receipt was submitted securely.')).toBeTruthy();
+    const awaitingVerification = screen.getByText('Awaiting verification');
+    expect(awaitingVerification.className).toContain('payment-submitted-status');
+    expect(awaitingVerification.querySelector('i')).toBeTruthy();
+    expect(screen.getByText('Status').parentElement?.querySelector('dd')?.textContent).toBe('Submitted');
     expect(fixture.finalizePaymentReceiptAndSubmit).toHaveBeenCalledWith({
       uploadToken: 'opaque-payment-token', paymentMethod: 'ONLINE_BANKING', transactionReference: 'TXN-9087',
       bankName: 'Maybank', paidAt: '2026-09-28',

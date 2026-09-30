@@ -1251,8 +1251,8 @@ html, body { background: var(--workspace-mist); }
 .payment-summary-reference strong { color: #294754; font-size: 11px; overflow-wrap: anywhere; }
 .payment-summary .private-storage-note { margin: 0 18px 18px; }
 .payment-state-panel { padding: 28px; }
-.payment-state-icon, .payment-success > span { display: grid; width: 54px; height: 54px; margin-bottom: 15px; place-items: center; border-radius: 15px; color: #087f8c; background: #e8f5f4; }
-.payment-state-icon.is-success, .payment-success > span { color: #237660; background: #eaf6f1; }
+.payment-state-icon, .payment-success-icon { display: grid; width: 54px; height: 54px; margin-bottom: 15px; place-items: center; border-radius: 15px; color: #087f8c; background: #e8f5f4; }
+.payment-state-icon.is-success, .payment-success-icon { color: #237660; background: #eaf6f1; }
 .payment-state-icon.is-danger { color: #a94850; background: #fff0f0; }
 .payment-state-panel h2, .payment-success h2 { margin: 13px 0 5px; color: var(--navy-900); font-size: 20px; letter-spacing: -.025em; }
 .payment-state-panel > p, .payment-success > p { max-width: 620px; margin: 0; color: #667d87; font-size: 11.5px; line-height: 1.65; }
@@ -1264,6 +1264,11 @@ html, body { background: var(--workspace-mist); }
 .payment-review-note strong { font-size: 11px; }
 .payment-review-note p { margin: 3px 0 0; font-size: 10px; line-height: 1.55; }
 .payment-success { max-width: 760px; padding: 32px; }
+.payment-submitted-status {
+  display: inline-flex; min-height: 28px; align-items: center; gap: 7px; border: 1px solid #b9dcdd; border-radius: 999px;
+  padding: 5px 10px; color: #176d75; background: #e9f6f5; font-size: 10.5px; font-weight: 720; line-height: 1;
+}
+.payment-submitted-status i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: #169a99; box-shadow: 0 0 0 3px rgb(22 154 153 / .11); }
 .payment-success dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 22px 0; }
 .payment-success dl > div { border: 1px solid #dce9e8; border-radius: 11px; padding: 12px; background: #f6faf9; }
 
