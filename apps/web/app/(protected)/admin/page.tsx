@@ -1,22 +1,43 @@
 'use client';
 
-import { Clock3, LockKeyhole } from 'lucide-react';
+import { CreditCard, FileCheck2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { ContentCard, PageContainer, PageHeading, StatusBadge, WelcomeBanner } from '@/components/dashboard/dashboard-ui';
-import { humanizeEnum } from '@/lib/roles';
+import {
+  ContentCard,
+  PageContainer,
+  PageHeading,
+  QuickActionTile,
+  StatusBadge,
+  WelcomeBanner,
+} from '@/components/dashboard/dashboard-ui';
+import { canReviewApplications, canReviewPayments, humanizeEnum } from '@/lib/roles';
 
-export default function AdminPlaceholderPage() {
+export default function AdminOverviewPage() {
   const { state } = useAuth();
   if (state.status !== 'authenticated') return null;
-  const name = state.user.fullName?.trim() || state.user.email;
-  return <PageContainer className="admin-placeholder-page">
+  const { user } = state;
+  const name = user.fullName?.trim() || user.email;
+  const applicationAccess = canReviewApplications(user.role);
+  const paymentAccess = canReviewPayments(user.role);
+
+  return <PageContainer className="admin-overview-page">
     <PageHeading eyebrow="Committee workspace" title="Administration"
-      description="Secure access for authorized MyAIS committee responsibilities." />
-    <WelcomeBanner role={humanizeEnum(state.user.role)} name={name}
+      description="Secure tools for your current MyAIS committee responsibilities." />
+    <WelcomeBanner role={humanizeEnum(user.role)} name={name}
       context="MyAIS Connect · Authorized committee workspace" />
-    <ContentCard className="admin-coming-soon"><span className="application-preview-icon"><Clock3 /></span>
-      <div><h3>Review tools are coming next</h3>
-        <p>The reviewer queue and payment verification screens remain intentionally outside Phase 6A.</p></div>
-      <StatusBadge tone="success"><LockKeyhole size={13} /> API access enforced</StatusBadge></ContentCard>
+    <section className="admin-overview-grid" aria-labelledby="admin-work-areas">
+      <header><div><p>Authorized access</p><h2 id="admin-work-areas">Your work areas</h2></div>
+        <StatusBadge tone="success"><ShieldCheck size={13} /> Active account</StatusBadge></header>
+      <div className="admin-work-area-list">
+        {applicationAccess && <QuickActionTile icon={FileCheck2} label="Application review"
+          supporting="Open reviewer queue" href="/admin/applications" />}
+        {paymentAccess && <QuickActionTile icon={CreditCard} label="Payment verification"
+          supporting="Coming in Phase 7A.2" disabled />}
+      </div>
+      {!applicationAccess && !paymentAccess && <ContentCard className="admin-access-note">
+        <ShieldCheck /><div><h3>No operational workspace assigned</h3>
+          <p>Your canonical role is active, but no Phase 7A work area is assigned to it.</p></div>
+      </ContentCard>}
+    </section>
   </PageContainer>;
 }

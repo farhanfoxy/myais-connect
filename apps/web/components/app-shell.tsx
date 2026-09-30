@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { useAuth } from '@/components/auth/auth-provider';
-import { humanizeEnum, roleFamily } from '@/lib/roles';
+import { canReviewApplications, canReviewPayments, humanizeEnum, roleFamily } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 interface MenuItem { label: string; icon: typeof UserRound; href?: string }
@@ -23,9 +23,12 @@ const membershipItems: MenuItem[] = [
 ];
 const memberDrawerItems: MenuItem[] = [...membershipItems,
   { label: 'Events', icon: CalendarDays }, { label: 'Announcements', icon: Megaphone }];
-const committeeItems: MenuItem[] = [
-  { label: 'Review workspace', icon: FileText }, { label: 'Payment review', icon: CreditCard },
-];
+function committeeItems(role: string | null): MenuItem[] {
+  const items: MenuItem[] = [];
+  if (canReviewApplications(role)) items.push({ label: 'Applications', icon: FileText, href: '/admin/applications' });
+  if (canReviewPayments(role)) items.push({ label: 'Payments', icon: CreditCard });
+  return items;
+}
 
 function useDismissibleMenu(open: boolean, close: () => void,
   triggerRef: RefObject<HTMLButtonElement | null>, panelRef: RefObject<HTMLDivElement | null>) {
@@ -76,8 +79,8 @@ function MembershipMenu({ announce, active }: Readonly<{ announce(label: string)
   </div>;
 }
 
-function UserMenu({ name, email, role, initial, signOut }: Readonly<{
-  name: string; email: string; role: string; initial: string; signOut(): Promise<void>;
+function UserMenu({ name, email, role, initial, identityHref, signOut }: Readonly<{
+  name: string; email: string; role: string; initial: string; identityHref: string; signOut(): Promise<void>;
 }>) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -86,7 +89,8 @@ function UserMenu({ name, email, role, initial, signOut }: Readonly<{
   useDismissibleMenu(open, close, triggerRef, panelRef);
   return <div className="top-nav-menu user-menu-wrap">
     <div className={cn('user-menu-trigger', open && 'is-open')}>
-      <Link className="user-profile-link" href="/profile" aria-label={`View ${name}'s profile`}>
+      <Link className="user-profile-link" href={identityHref}
+        aria-label={identityHref === '/profile' ? `View ${name}'s profile` : `View ${name}'s workspace identity`}>
         <span className="user-avatar">{initial}</span><span className="user-menu-name">{name}</span></Link>
       <button ref={triggerRef} className="account-menu-button" aria-label="Open account menu"
         aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(value => !value)}>
@@ -133,7 +137,10 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const displayName = user.fullName?.trim() || user.email;
   const initial = displayName.charAt(0).toUpperCase();
   const role = humanizeEnum(user.role);
-  const drawerItems = isCommittee ? committeeItems : memberDrawerItems;
+  const reviewEnabled = canReviewApplications(user.role);
+  const paymentEnabled = canReviewPayments(user.role);
+  const drawerItems = isCommittee ? committeeItems(user.role) : memberDrawerItems;
+  const identityHref = isCommittee ? '/admin' : '/profile';
 
   async function signOut() { await logout(); router.replace('/login'); }
   function announce(label: string) { setNotice(`${label} is coming in a future MyAIS phase.`); }
@@ -146,15 +153,21 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       <nav className="desktop-top-nav" aria-label="Primary navigation">
         <Link className={cn('top-nav-link', pathname === home && 'is-active')} href={home}>
           {isCommittee ? 'Overview' : 'Dashboard'}</Link>
-        {isCommittee ? <button className="top-nav-link" onClick={() => announce('Review workspace')}>Reviews</button> :
+        {isCommittee ? <>
+          {reviewEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/applications') && 'is-active')}
+            href="/admin/applications">Applications</Link>}
+          {paymentEnabled && <button className="top-nav-link" onClick={() => announce('Payments')}>Payments</button>}
+        </> :
           <MembershipMenu announce={announce} active={pathname === '/profile' || pathname === '/my-card' || pathname.startsWith('/my-application')} />}
-        <button className="top-nav-link" onClick={() => announce('Events')}>Events</button>
-        <button className="top-nav-link" onClick={() => announce('Announcements')}>News</button>
+        {!isCommittee && <><button className="top-nav-link" onClick={() => announce('Events')}>Events</button>
+          <button className="top-nav-link" onClick={() => announce('Announcements')}>News</button></>}
       </nav>
       <div className="header-tools"><button className="header-icon-button" aria-label="Notifications"
         title="Notifications" onClick={() => announce('Notifications')}><Bell size={19} /></button>
-        <UserMenu name={displayName} email={user.email} role={role} initial={initial} signOut={signOut} />
-        <Link className="mobile-account-button" href="/profile" aria-label="View profile">
+        <UserMenu name={displayName} email={user.email} role={role} initial={initial} identityHref={identityHref}
+          signOut={signOut} />
+        <Link className="mobile-account-button" href={identityHref}
+          aria-label={isCommittee ? 'View workspace identity' : 'View profile'}>
           <span className="user-avatar">{initial}</span></Link>
         <button className="mobile-menu-button" aria-label="Open navigation menu"
           onClick={event => openDrawer(event.currentTarget)}><Menu size={20} /></button></div>
@@ -162,11 +175,18 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
     <main className="app-content">{children}</main>
 
-    <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-      <Link className={cn(pathname === home && 'is-active')} href={home}><House /><span>Dashboard</span></Link>
-      <Link className={cn(pathname.startsWith('/my-application') && 'is-active')} href="/my-application">
-        <FileText /><span>Application</span></Link>
-      <Link className={cn(pathname === '/my-card' && 'is-active')} href="/my-card"><IdCard /><span>Card</span></Link>
+    <nav className={cn('mobile-bottom-nav', isCommittee && 'committee-mobile-nav', isCommittee &&
+      `committee-mobile-nav-${2 + Number(reviewEnabled) + Number(paymentEnabled)}`)} aria-label="Mobile navigation">
+      <Link className={cn(pathname === home && 'is-active')} href={home}><House /><span>{isCommittee ? 'Overview' : 'Dashboard'}</span></Link>
+      {isCommittee ? <>
+        {reviewEnabled && <Link className={cn(pathname.startsWith('/admin/applications') && 'is-active')}
+          href="/admin/applications"><FileText /><span>Applications</span></Link>}
+        {paymentEnabled && <button onClick={() => announce('Payments')}><CreditCard /><span>Payments</span></button>}
+      </> : <>
+        <Link className={cn(pathname.startsWith('/my-application') && 'is-active')} href="/my-application">
+          <FileText /><span>Application</span></Link>
+        <Link className={cn(pathname === '/my-card' && 'is-active')} href="/my-card"><IdCard /><span>Card</span></Link>
+      </>}
       <button onClick={event => openDrawer(event.currentTarget)}><Menu /><span>More</span></button>
     </nav>
 
@@ -178,7 +198,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     }}><aside className="mobile-drawer" role="dialog" aria-modal="true" aria-label="MyAIS navigation menu">
       <div className="drawer-header"><BrandMark /><button ref={closeButtonRef} aria-label="Close navigation"
         onClick={closeDrawer}><X /></button></div>
-      <Link className="drawer-identity" href="/profile" onClick={closeDrawer} aria-label="View profile">
+      <Link className="drawer-identity" href={identityHref} onClick={closeDrawer}
+        aria-label={isCommittee ? 'View workspace identity' : 'View profile'}>
         <span className="user-avatar user-avatar-large">{initial}</span>
         <div><strong>{displayName}</strong><span>{role}</span></div></Link>
       <nav className="drawer-navigation" aria-label="More navigation"><p>Workspace</p>

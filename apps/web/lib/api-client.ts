@@ -86,6 +86,81 @@ export interface MembershipTypeOption {
   membershipFee: string | null;
 }
 
+export interface ReviewerMembershipTypeOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface ReviewerApplicationQueueItem {
+  id: string;
+  applicationNumber: string | null;
+  applicantName: string;
+  applicantEmail: string;
+  requestedMembershipType: { code: string; name: string | null } | null;
+  recommendedMembershipType: { code: string; name: string | null } | null;
+  submittedAt: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface ReviewerApplicationQueue {
+  items: ReviewerApplicationQueueItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ReviewerApplicationDetail {
+  id: string;
+  applicationNumber: string | null;
+  status: string;
+  applicant: {
+    displayName: string;
+    email: string;
+    nationality: string | null;
+    dateOfBirth: string | null;
+    institution: string | null;
+    aisMember: boolean;
+    aisMembershipNumber: string | null;
+    aisMembershipExpiry: string | null;
+  };
+  requestedMembershipType: { code: string; name: string | null } | null;
+  recommendedMembershipType: { code: string; name: string | null } | null;
+  eligibilityScore: number | null;
+  eligibilityExplanation: string | null;
+  latestReviewerRemarks: string | null;
+  rejectionReason: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  documents: Array<{
+    id: string;
+    documentType: string;
+    originalFileName: string | null;
+    mimeType: string | null;
+    fileSize: number | null;
+    verificationStatus: string | null;
+    reviewerRemarks: string | null;
+    verifiedAt: string | null;
+    createdAt: string;
+    downloadAvailable: boolean;
+  }>;
+  reviewHistory: Array<{
+    id: string;
+    reviewerName: string | null;
+    decision: string;
+    remarks: string | null;
+    previousStatus: string | null;
+    newStatus: string | null;
+    createdAt: string;
+  }>;
+}
+
 export type ApplicationDocumentType = 'IDENTIFICATION' | 'AIS_MEMBERSHIP_PROOF' | 'PROFILE_PHOTO' |
   'ADDITIONAL_SUPPORTING_DOCUMENT';
 
@@ -208,6 +283,58 @@ export class ApiClient {
 
   listMembershipTypes(): Promise<MembershipTypeOption[]> {
     return this.request('/registration/membership-types');
+  }
+
+  listReviewerMembershipTypes(): Promise<ReviewerMembershipTypeOption[]> {
+    return this.request('/reviewer/membership-types');
+  }
+
+  listReviewerApplications(input: {
+    page: number; pageSize: number; search: string; status: string;
+  }): Promise<ReviewerApplicationQueue> {
+    const query = new URLSearchParams({
+      page: String(input.page), pageSize: String(input.pageSize), search: input.search, status: input.status,
+    });
+    return this.request(`/reviewer/applications?${query.toString()}`);
+  }
+
+  getReviewerApplication(id: string): Promise<ReviewerApplicationDetail> {
+    return this.request(`/reviewer/applications/${encodeURIComponent(id)}`);
+  }
+
+  getReviewerDocumentDownload(applicationId: string, documentId: string): Promise<PrivateDownloadTarget> {
+    return this.request(`/reviewer/applications/${encodeURIComponent(applicationId)}/documents/` +
+      `${encodeURIComponent(documentId)}/download`);
+  }
+
+  startApplicationReview(id: string, remarks = ''): Promise<{ id: string; status: string; reviewedAt: string }> {
+    return this.reviewerAction(id, 'start-review', { remarks });
+  }
+
+  requestApplicationInformation(id: string, input: { remarks: string; dueDate?: string | null }) {
+    return this.reviewerAction(id, 'request-information', input);
+  }
+
+  recommendApplicationApproval(id: string, remarks = '') {
+    return this.reviewerAction(id, 'recommend-approval', { remarks });
+  }
+
+  approveApplication(id: string, input: { approvedMembershipTypeId: string; remarks?: string }) {
+    return this.reviewerAction(id, 'approve', input);
+  }
+
+  rejectApplication(id: string, remarks: string) {
+    return this.reviewerAction(id, 'reject', { remarks });
+  }
+
+  private reviewerAction<T = { id: string; status: string; reviewedAt?: string }>(
+    id: string,
+    action: string,
+    input: unknown,
+  ): Promise<T> {
+    return this.request(`/reviewer/applications/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST', body: JSON.stringify(input),
+    });
   }
 
   createApplicationDraft(input: { requestedMembershipTypeCode: string; eligibility: EligibilityInput }) {

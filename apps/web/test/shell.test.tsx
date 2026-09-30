@@ -30,6 +30,7 @@ vi.mock('@/components/auth/auth-provider', () => ({
 afterEach(cleanup);
 beforeEach(() => {
   fixture.pathname = '/dashboard';
+  fixture.state.user.role = 'APPLICANT';
   fixture.replace.mockReset();
   fixture.logout.mockClear();
 });
@@ -127,5 +128,24 @@ describe('responsive application shell interactions', () => {
     render(<AppShell><p>Card content</p></AppShell>);
     const cardLinks = screen.getAllByRole('link', { name: 'Card' });
     expect(cardLinks.some(link => link.getAttribute('href') === '/my-card' && link.className.includes('is-active'))).toBe(true);
+  });
+
+  it('shows real committee application navigation and hides unfinished member modules', () => {
+    fixture.pathname = '/admin/applications';
+    fixture.state.user.role = 'PRESIDENT';
+    render(<AppShell><p>Review content</p></AppShell>);
+    expect(screen.getAllByRole('link', { name: 'Applications' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Events' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'News' })).toBeNull();
+  });
+
+  it('keeps Treasurer out of application navigation and marks payment review as deferred', async () => {
+    fixture.pathname = '/admin';
+    fixture.state.user.role = 'TREASURER';
+    const user = userEvent.setup();
+    render(<AppShell><p>Treasurer content</p></AppShell>);
+    expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull();
+    await user.click(screen.getAllByRole('button', { name: 'Payments' })[0]!);
+    expect(screen.getByRole('status').textContent).toContain('Payments is coming in a future MyAIS phase.');
   });
 });
