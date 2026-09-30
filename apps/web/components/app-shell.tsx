@@ -26,7 +26,7 @@ const memberDrawerItems: MenuItem[] = [...membershipItems,
 function committeeItems(role: string | null): MenuItem[] {
   const items: MenuItem[] = [];
   if (canReviewApplications(role)) items.push({ label: 'Applications', icon: FileText, href: '/admin/applications' });
-  if (canReviewPayments(role)) items.push({ label: 'Payments', icon: CreditCard });
+  if (canReviewPayments(role)) items.push({ label: 'Payments', icon: CreditCard, href: '/admin/payments' });
   return items;
 }
 
@@ -156,7 +156,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         {isCommittee ? <>
           {reviewEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/applications') && 'is-active')}
             href="/admin/applications">Applications</Link>}
-          {paymentEnabled && <button className="top-nav-link" onClick={() => announce('Payments')}>Payments</button>}
+          {paymentEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/payments') && 'is-active')}
+            href="/admin/payments">Payments</Link>}
         </> :
           <MembershipMenu announce={announce} active={pathname === '/profile' || pathname === '/my-card' || pathname.startsWith('/my-application')} />}
         {!isCommittee && <><button className="top-nav-link" onClick={() => announce('Events')}>Events</button>
@@ -181,7 +182,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       {isCommittee ? <>
         {reviewEnabled && <Link className={cn(pathname.startsWith('/admin/applications') && 'is-active')}
           href="/admin/applications"><FileText /><span>Applications</span></Link>}
-        {paymentEnabled && <button onClick={() => announce('Payments')}><CreditCard /><span>Payments</span></button>}
+        {paymentEnabled && <Link className={cn(pathname.startsWith('/admin/payments') && 'is-active')}
+          href="/admin/payments"><CreditCard /><span>Payments</span></Link>}
       </> : <>
         <Link className={cn(pathname.startsWith('/my-application') && 'is-active')} href="/my-application">
           <FileText /><span>Application</span></Link>

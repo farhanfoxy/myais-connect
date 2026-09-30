@@ -8,7 +8,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { protectedRouteDecision } from '@/lib/auth-service';
-import { canReviewApplications, canonicalDestination, roleFamily } from '@/lib/roles';
+import { canReviewApplications, canReviewPayments, canonicalDestination, roleFamily } from '@/lib/roles';
 
 export function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   const router = useRouter();
@@ -26,6 +26,9 @@ export function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) 
         router.replace(canonicalDestination(state.user.role));
       }
       if (family === 'committee' && pathname.startsWith('/admin/applications') && !canReviewApplications(state.user.role)) {
+        router.replace('/admin');
+      }
+      if (family === 'committee' && pathname.startsWith('/admin/payments') && !canReviewPayments(state.user.role)) {
         router.replace('/admin');
       }
     }
@@ -51,5 +54,6 @@ export function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) 
   if ((pathname.startsWith('/admin') && family !== 'committee') ||
       (pathname.startsWith('/dashboard') && family !== 'member')) return null;
   if (pathname.startsWith('/admin/applications') && !canReviewApplications(state.user.role)) return null;
+  if (pathname.startsWith('/admin/payments') && !canReviewPayments(state.user.role)) return null;
   return children;
 }

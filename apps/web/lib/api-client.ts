@@ -161,6 +161,63 @@ export interface ReviewerApplicationDetail {
   }>;
 }
 
+export interface ReviewerPaymentQueueItem {
+  id: string;
+  paymentReference: string | null;
+  applicantName: string;
+  applicantEmail: string;
+  applicationNumber: string | null;
+  membershipType: { code: string; name: string | null } | null;
+  totalAmount: string;
+  currency: string | null;
+  paymentMethod: string | null;
+  submittedAt: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface ReviewerPaymentQueue {
+  items: ReviewerPaymentQueueItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ReviewerPaymentDetail {
+  id: string;
+  paymentReference: string | null;
+  status: string;
+  applicant: { displayName: string; email: string };
+  application: {
+    applicationNumber: string | null;
+    status: string;
+    approvedMembershipType: { code: string; name: string | null } | null;
+  } | null;
+  entranceFee: string | null;
+  membershipFee: string | null;
+  totalAmount: string;
+  currency: string | null;
+  paymentMethod: string | null;
+  bankName: string | null;
+  transactionReference: string | null;
+  paidAt: string | null;
+  submittedAt: string | null;
+  rejectionReason: string | null;
+  treasurerRemarks: string | null;
+  verifiedAt: string | null;
+  receiptDownloadAvailable: boolean;
+}
+
+export interface ReviewerPaymentMutationResult {
+  id: string;
+  status: string;
+  applicationStatus: string;
+  membershipNumber?: string | null;
+  verifiedAt?: string;
+  alreadyVerified?: boolean;
+}
+
 export type ApplicationDocumentType = 'IDENTIFICATION' | 'AIS_MEMBERSHIP_PROOF' | 'PROFILE_PHOTO' |
   'ADDITIONAL_SUPPORTING_DOCUMENT';
 
@@ -325,6 +382,35 @@ export class ApiClient {
 
   rejectApplication(id: string, remarks: string) {
     return this.reviewerAction(id, 'reject', { remarks });
+  }
+
+  listReviewerPayments(input: {
+    page: number; pageSize: number; search: string; status: string;
+  }): Promise<ReviewerPaymentQueue> {
+    const query = new URLSearchParams({
+      page: String(input.page), pageSize: String(input.pageSize), search: input.search, status: input.status,
+    });
+    return this.request(`/reviewer/payments?${query.toString()}`);
+  }
+
+  getReviewerPayment(id: string): Promise<ReviewerPaymentDetail> {
+    return this.request(`/reviewer/payments/${encodeURIComponent(id)}`);
+  }
+
+  getReviewerPaymentReceiptDownload(id: string): Promise<PrivateDownloadTarget> {
+    return this.request(`/reviewer/payments/${encodeURIComponent(id)}/receipt/download`);
+  }
+
+  verifyReviewerPayment(id: string, treasurerRemarks = ''): Promise<ReviewerPaymentMutationResult> {
+    return this.request(`/reviewer/payments/${encodeURIComponent(id)}/verify`, {
+      method: 'POST', body: JSON.stringify({ treasurerRemarks }),
+    });
+  }
+
+  rejectReviewerPayment(id: string, remarks: string): Promise<ReviewerPaymentMutationResult> {
+    return this.request(`/reviewer/payments/${encodeURIComponent(id)}/reject`, {
+      method: 'POST', body: JSON.stringify({ remarks }),
+    });
   }
 
   private reviewerAction<T = { id: string; status: string; reviewedAt?: string }>(

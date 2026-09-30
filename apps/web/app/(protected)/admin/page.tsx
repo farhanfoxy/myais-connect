@@ -32,7 +32,7 @@ export default function AdminOverviewPage() {
         {applicationAccess && <QuickActionTile icon={FileCheck2} label="Application review"
           supporting="Open reviewer queue" href="/admin/applications" />}
         {paymentAccess && <QuickActionTile icon={CreditCard} label="Payment verification"
-          supporting="Coming in Phase 7A.2" disabled />}
+          supporting="Open payment queue" href="/admin/payments" />}
       </div>
       {!applicationAccess && !paymentAccess && <ContentCard className="admin-access-note">
         <ShieldCheck /><div><h3>No operational workspace assigned</h3>

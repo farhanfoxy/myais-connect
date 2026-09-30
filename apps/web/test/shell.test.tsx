@@ -139,13 +139,20 @@ describe('responsive application shell interactions', () => {
     expect(screen.queryByRole('button', { name: 'News' })).toBeNull();
   });
 
-  it('keeps Treasurer out of application navigation and marks payment review as deferred', async () => {
+  it('keeps Treasurer out of application navigation and enables payment review', () => {
     fixture.pathname = '/admin';
     fixture.state.user.role = 'TREASURER';
-    const user = userEvent.setup();
     render(<AppShell><p>Treasurer content</p></AppShell>);
     expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull();
-    await user.click(screen.getAllByRole('button', { name: 'Payments' })[0]!);
-    expect(screen.getByRole('status').textContent).toContain('Payments is coming in a future MyAIS phase.');
+    expect(screen.getAllByRole('link', { name: 'Payments' }).some(link =>
+      link.getAttribute('href') === '/admin/payments')).toBe(true);
+  });
+
+  it('gives System Administrator both operational work areas', () => {
+    fixture.pathname = '/admin';
+    fixture.state.user.role = 'SYSTEM_ADMINISTRATOR';
+    render(<AppShell><p>Administrator content</p></AppShell>);
+    expect(screen.getAllByRole('link', { name: 'Applications' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Payments' }).length).toBeGreaterThan(0);
   });
 });

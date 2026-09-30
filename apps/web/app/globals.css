@@ -1364,7 +1364,8 @@ html, body { background: var(--workspace-mist); }
 }
 
 /* Committee application review */
-.admin-overview-page, .admin-applications-page, .admin-application-detail-page { max-width: 1140px; margin: 0 auto; }
+.admin-overview-page, .admin-applications-page, .admin-application-detail-page,
+.admin-payments-page, .admin-payment-detail-page { max-width: 1140px; margin: 0 auto; }
 .admin-overview-page { display: grid; gap: 26px; }
 .admin-overview-grid { display: grid; gap: 17px; }
 .admin-overview-grid > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -1380,7 +1381,7 @@ html, body { background: var(--workspace-mist); }
 .admin-access-note h3 { margin: 0 0 3px; font-size: 14px; }
 .admin-access-note p { margin: 0; color: var(--ink-500); font-size: 12px; }
 
-.admin-applications-page, .admin-application-detail-page { display: grid; gap: 24px; }
+.admin-applications-page, .admin-application-detail-page, .admin-payments-page, .admin-payment-detail-page { display: grid; gap: 24px; }
 .review-queue-panel, .review-detail-section, .review-action-panel, .review-detail-hero {
   border: 1px solid rgb(207 225 228 / .92); border-radius: 18px; background: rgb(255 255 255 / .92);
   box-shadow: 0 10px 30px rgb(7 43 55 / .045), inset 0 1px 0 rgb(255 255 255 / .85);
@@ -1503,18 +1504,52 @@ html, body { background: var(--workspace-mist); }
 .review-dialog form > footer { display: flex; justify-content: flex-end; gap: 9px; border-top: 1px solid #edf2f2; padding-top: 16px; }
 .review-dialog .button svg { width: 16px; }
 
+.payment-review-table .payment-amount { display: block; color: #123d50; font-size: 11.5px; white-space: nowrap; }
+.payment-review-table .payment-amount + span { display: block; margin-top: 2px; color: #85959d; font-size: 8.5px; }
+.payment-review-table td:nth-child(2), .payment-review-table td:nth-child(3) { white-space: nowrap; }
+.payment-card-amount { display: block; margin: 14px 0 -2px; color: #0b4557; font-size: 20px; letter-spacing: -.025em; }
+.payment-detail-hero-state { display: flex; align-items: center; gap: 12px; }
+.payment-detail-hero-state > strong { color: #0a5361; font-size: 20px; letter-spacing: -.025em; white-space: nowrap; }
+.payment-fee-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; border-bottom: 1px solid #e6eeee; padding: 18px 21px; background: #f8fbfb; }
+.payment-fee-summary > div { display: grid; gap: 3px; border: 1px solid #dde9ea; border-radius: 11px; padding: 12px; background: white; }
+.payment-fee-summary span { color: #80929b; font-size: 9px; }
+.payment-fee-summary strong { color: #31515e; font-size: 12px; }
+.payment-fee-summary .is-total { border-color: #bcdedc; background: #eef8f6; }
+.payment-fee-summary .is-total strong { color: #086c72; font-size: 15px; }
+.payment-receipt-review { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 20px 21px; }
+.payment-receipt-review > span:first-child { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; color: #087985; background: #e8f5f4; }
+.payment-receipt-review > span:first-child svg { width: 20px; }
+.payment-receipt-review strong { display: block; color: #294b58; font-size: 11.5px; }
+.payment-receipt-review p { margin: 3px 0 0; color: #71858f; font-size: 9.5px; }
+.payment-receipt-review .button { min-height: 40px; padding-inline: 13px; font-size: 10px; }
+.payment-receipt-review .button svg, .payment-action-stack .button svg { width: 16px; }
+.payment-action-stack { grid-template-columns: 1fr; }
+
 @media (max-width: 920px) {
   .review-queue-filters { grid-template-columns: minmax(0, 1fr) minmax(180px, .55fr) auto; }
   .review-queue-filters .button-ghost { grid-column: 1 / -1; justify-self: start; min-height: 34px; }
   .review-detail-layout { grid-template-columns: 1fr; }
   .review-action-panel { position: static; grid-row: 1; }
   .review-action-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .review-table-wrap { display: none; }
+  .review-card-list { display: grid; gap: 11px; margin: 0; padding: 13px; list-style: none; background: #f6fafa; }
+  .review-card-list li { border: 1px solid #dce8e9; border-radius: 14px; padding: 15px; background: white; box-shadow: var(--shadow-sm); }
+  .review-card-list header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .review-card-list header strong, .review-card-list header span { display: block; }
+  .review-card-list header strong { color: var(--navy-900); font-size: 12px; }
+  .review-card-list header div > span { margin-top: 2px; color: #80919a; font-size: 9px; }
+  .review-card-list dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+  .review-card-list dt { color: #87979f; font-size: 8.5px; }
+  .review-card-list dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #38525e; font-size: 10px; font-weight: 650; }
+  .review-card-list .button { width: 100%; min-height: 42px; font-size: 10.5px; }
+  .payment-action-stack { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 760px) {
   .committee-mobile-nav-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .committee-mobile-nav-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .admin-overview-page, .admin-applications-page, .admin-application-detail-page { gap: 18px; }
+  .admin-overview-page, .admin-applications-page, .admin-application-detail-page,
+  .admin-payments-page, .admin-payment-detail-page { gap: 18px; }
   .admin-overview-grid > header, .review-detail-hero { align-items: flex-start; }
   .admin-work-area-list { grid-template-columns: 1fr; }
   .review-queue-header { padding: 18px 16px; }
@@ -1548,6 +1583,10 @@ html, body { background: var(--workspace-mist); }
   .review-dialog-backdrop { align-items: end; padding: 0; }
   .review-dialog { width: 100%; max-height: 92svh; overflow-y: auto; border-radius: 20px 20px 0 0; }
   .review-dialog form > footer { display: grid; grid-template-columns: 1fr 1fr; }
+  .payment-detail-hero-state { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .payment-fee-summary { grid-template-columns: 1fr; padding: 15px 16px; }
+  .payment-receipt-review { grid-template-columns: auto minmax(0, 1fr); padding: 18px 16px; }
+  .payment-receipt-review > .button, .payment-receipt-review > .review-document-unavailable { grid-column: 2; width: max-content; }
 }
 
 @media (max-width: 420px) {
@@ -1558,6 +1597,7 @@ html, body { background: var(--workspace-mist); }
   .review-history-admin header { align-items: flex-start; flex-direction: column; gap: 2px; }
   .review-dialog form > footer { grid-template-columns: 1fr; }
   .review-dialog form > footer .button { width: 100%; }
+  .payment-action-stack { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
