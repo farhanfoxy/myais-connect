@@ -93,6 +93,12 @@ export const finalizePrivateUploadSchema = z.object({
   uploadToken: z.string().min(1),
 }).strict();
 
+export const profilePhotoUploadSchema = z.object({
+  originalFileName: z.string().refine(value => value.trim().length > 0, 'Required'),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024, 'Maximum 5MB allowed'),
+}).strict();
+
 export const submitMembershipApplicationSchema = z.object({
   declarationAccepted: z.literal(true),
 }).strict();
@@ -182,3 +188,85 @@ export const reviewerPaymentRemarksSchema = z.object({
 export const reviewerPaymentRejectSchema = z.object({
   remarks: z.string().refine(value => value.trim().length > 0, 'Remarks are required'),
 }).strict();
+
+export const eventCategorySchema = z.enum([
+  'SEMINARS_AND_WEBINARS', 'WORKSHOPS', 'MEETINGS', 'MYDCIS', 'CONFERENCES', 'OTHER',
+]);
+export const eventStatusSchema = z.enum([
+  'DRAFT', 'PUBLISHED', 'REGISTRATION_CLOSED', 'CANCELLED', 'COMPLETED', 'ARCHIVED',
+]);
+
+const eventTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time');
+const optionalEventText = (maximum: number) => z.string().trim().max(maximum).optional().nullable();
+const optionalEventUrl = z.string().trim().max(2048).url('Invalid URL')
+  .refine(value => /^https?:\/\//i.test(value), 'Only HTTP(S) URLs are allowed').optional().nullable();
+
+export const eventInputSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  category: eventCategorySchema,
+  summary: optionalEventText(500),
+  description: z.string().trim().min(1, 'Description is required').max(20_000),
+  coverImage: optionalEventUrl,
+  speakerName: optionalEventText(200),
+  speakerTitle: optionalEventText(200),
+  eventType: optionalEventText(100),
+  venueType: z.enum(['PHYSICAL', 'ONLINE', 'HYBRID']),
+  venueName: optionalEventText(300),
+  physicalAddress: optionalEventText(1_000),
+  onlineMeetingUrl: optionalEventUrl,
+  startDate: calendarDate,
+  startTime: eventTime,
+  endDate: calendarDate.optional().nullable(),
+  endTime: eventTime.optional().nullable(),
+  registrationStart: calendarDate.optional().nullable(),
+  registrationDeadline: calendarDate.optional().nullable(),
+  capacity: z.number().nonnegative().finite().optional().nullable(),
+  limitedSeats: z.boolean().default(false),
+  memberFee: z.number().nonnegative().finite().default(0),
+  nonMemberFee: z.number().nonnegative().finite().default(0),
+  currency: z.string().trim().min(3).max(3).default('MYR'),
+  paymentInstructions: optionalEventText(2_000),
+  registrationUrl: optionalEventUrl,
+  targetAudience: z.enum(['MEMBERS', 'NON_MEMBERS', 'MEMBERS_AND_NON_MEMBERS']).default('MEMBERS_AND_NON_MEMBERS'),
+}).strict().superRefine((value, context) => {
+  const start = `${value.startDate}T${value.startTime}`;
+  if (value.endDate && value.endTime) {
+    const end = `${value.endDate}T${value.endTime}`;
+    if (end <= start) context.addIssue({ code: 'custom', path: ['endTime'], message: 'End must be after the event start' });
+  }
+  if (value.registrationStart && value.registrationDeadline && value.registrationStart > value.registrationDeadline) {
+    context.addIssue({ code: 'custom', path: ['registrationDeadline'], message: 'Registration deadline must be on or after registration start' });
+  }
+  if (value.registrationDeadline && value.registrationDeadline > value.startDate) {
+    context.addIssue({ code: 'custom', path: ['registrationDeadline'], message: 'Registration deadline must be before or on the event start date' });
+  }
+  if ((value.venueType === 'ONLINE' || value.venueType === 'HYBRID') && !value.onlineMeetingUrl) {
+    context.addIssue({ code: 'custom', path: ['onlineMeetingUrl'], message: 'Online meeting URL is required for online or hybrid events' });
+  }
+  if ((value.venueType === 'PHYSICAL' || value.venueType === 'HYBRID') && !value.venueName) {
+    context.addIssue({ code: 'custom', path: ['venueName'], message: 'Venue name is required' });
+  }
+  if ((value.venueType === 'PHYSICAL' || value.venueType === 'HYBRID') && !value.physicalAddress) {
+    context.addIssue({ code: 'custom', path: ['physicalAddress'], message: 'Physical address is required' });
+  }
+});
+
+export const memberEventQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  category: z.union([z.literal('ALL'), eventCategorySchema]).default('ALL'),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+}).strict();
+
+export const adminEventQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  category: z.union([z.literal('ALL'), eventCategorySchema]).default('ALL'),
+  status: z.union([z.literal('ALL'), eventStatusSchema]).default('ALL'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+}).strict();
+
+export const cancelEventSchema = z.object({
+  reason: z.string().trim().min(1, 'Cancellation reason is required').max(1_000),
+}).strict();
+
+export type EventInput = z.infer<typeof eventInputSchema>;

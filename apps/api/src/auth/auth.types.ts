@@ -6,6 +6,7 @@ export const principalSelect = {
   email: true,
   fullName: true,
   photoUrl: true,
+  profilePhotoObjectKey: true,
   role: true,
   accountStatus: true,
 } as const;

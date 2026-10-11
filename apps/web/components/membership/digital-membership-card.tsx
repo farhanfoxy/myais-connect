@@ -1,12 +1,12 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   AlertCircle, CheckCircle2, Download, IdCard, LoaderCircle, Printer, RefreshCw, Share2, ShieldCheck,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { OfficialMyaisMark } from '@/components/brand-mark';
 import { PageContainer, PageHeading, StatusBadge } from '@/components/dashboard/dashboard-ui';
 import { Button } from '@/components/ui/button';
 import type { CurrentMembership, MemberProfileResponse } from '@/lib/api-client';
@@ -47,12 +47,9 @@ export function MembershipCardVisual({ membership, profileName, gender, canonica
 }>) {
   const displayName = membershipDisplayName(profileName, canonicalName, gender);
   return <article className="digital-card" aria-labelledby="digital-card-name">
-    <header><div className="digital-card-cobrand"><div className="digital-card-brand">
-      <Image src="/brand/myais-connect-mark.png" width={1200} height={1200} sizes="48px" alt="" />
-      <div><strong>MyAIS</strong><span>CONNECT</span></div></div>
+    <header><div className="digital-card-brand-row"><OfficialMyaisMark className="digital-card-logo" />
       <span className="digital-card-brand-divider" aria-hidden="true" />
-      <span className="digital-card-ais-plate"><Image src="/brand/ais-malaysia-chapter-mark.png"
-        width={1763} height={892} sizes="76px" alt="AIS Malaysia Chapter" /></span></div></header>
+      <span className="digital-card-product-name"><strong>MyAIS</strong> Connect</span></div></header>
     <div className="digital-card-member"><MemberPortrait photoUrl={photoUrl} name={displayName} /><div>
       <p>{membership.membershipTypeName || statusLabel(membership.membershipTypeCode)}</p>
       <h2 id="digital-card-name">{displayName}</h2></div></div>
@@ -110,13 +107,12 @@ export function DigitalMembershipCard() {
     {membership && <div className="membership-card-layout">
       <div className="membership-card-stage"><MembershipCardVisual membership={membership} profileName={profile?.profile.fullName ?? null}
         gender={profile?.profile.gender ?? null}
-        canonicalName={state.user.fullName} photoUrl={state.user.photoUrl} /></div>
+        canonicalName={state.user.fullName} photoUrl={profile?.photoUrl ?? state.user.photoUrl} /></div>
       <aside className="membership-card-details" aria-labelledby="membership-details-heading">
         <header><StatusBadge tone="success"><CheckCircle2 size={13} /> Active</StatusBadge>
           <h2 id="membership-details-heading">Membership details</h2><p>This card reflects your current active Membership record.</p></header>
-        <figure className="membership-association-brand"><Image src="/brand/ais-malaysia-chapter-mark.png"
-          width={1763} height={892} sizes="112px" alt="Association for Information Systems Malaysia Chapter logo" />
-          <figcaption><span>Official chapter association</span><strong>AIS Malaysia Chapter</strong></figcaption></figure>
+        <div className="membership-association-brand"><span>Official chapter association</span>
+          <strong>Association for Information Systems Malaysia Chapter (MyAIS)</strong></div>
         <dl><div><dt>Membership number</dt><dd>{membership.membershipNumber || 'Not available'}</dd></div>
           <div><dt>Membership type</dt><dd>{membership.membershipTypeName || statusLabel(membership.membershipTypeCode)}</dd></div>
           <div><dt>Status</dt><dd>Active</dd></div><div><dt>Voting eligibility</dt><dd>{membership.votingEligible ? 'Eligible' : 'Not eligible'}</dd></div>

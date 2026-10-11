@@ -38,7 +38,7 @@ export interface MemberProfileFields {
   profileCompletionPercentage: number;
 }
 
-export interface MemberProfileResponse { email: string; exists: boolean; profile: MemberProfileFields }
+export interface MemberProfileResponse { email: string; photoUrl: string | null; exists: boolean; profile: MemberProfileFields }
 
 export interface MembershipApplicationSummary {
   id: string;
@@ -293,6 +293,119 @@ export interface CurrentMembership {
   activatedAt: string | null;
 }
 
+export type EventCategory = 'SEMINARS_AND_WEBINARS' | 'WORKSHOPS' | 'MEETINGS' | 'MYDCIS' | 'CONFERENCES' | 'OTHER';
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'REGISTRATION_CLOSED' | 'CANCELLED' | 'COMPLETED' | 'ARCHIVED';
+
+export interface EventRecord {
+  id: string;
+  eventNumber: string | null;
+  title: string;
+  category: EventCategory;
+  summary: string | null;
+  description: string;
+  coverImage: string | null;
+  speakerName: string | null;
+  speakerTitle: string | null;
+  eventType: string | null;
+  venueType: 'PHYSICAL' | 'ONLINE' | 'HYBRID';
+  venueName: string | null;
+  physicalAddress: string | null;
+  startDate: string;
+  startTime: string;
+  endDate: string | null;
+  endTime: string | null;
+  registrationStart: string | null;
+  registrationDeadline: string | null;
+  capacity: number | null;
+  limitedSeats: boolean | null;
+  memberFee: string | null;
+  nonMemberFee: string | null;
+  currency: string | null;
+  paymentInstructions: string | null;
+  status: EventStatus;
+  targetAudience: 'MEMBERS' | 'NON_MEMBERS' | 'MEMBERS_AND_NON_MEMBERS' | null;
+  publishedAt: string | null;
+  cancellationReason: string | null;
+  placeholderImageNotice: boolean | null;
+  timezone: string;
+  registrationAvailable: boolean;
+}
+
+export interface AdminEventRecord extends EventRecord {
+  slug: string | null;
+  onlineMeetingUrl: string | null;
+  registrationUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+}
+
+export interface EventInput {
+  title: string;
+  category: EventCategory;
+  summary?: string | null;
+  description: string;
+  coverImage?: string | null;
+  speakerName?: string | null;
+  speakerTitle?: string | null;
+  eventType?: string | null;
+  venueType: 'PHYSICAL' | 'ONLINE' | 'HYBRID';
+  venueName?: string | null;
+  physicalAddress?: string | null;
+  onlineMeetingUrl?: string | null;
+  startDate: string;
+  startTime: string;
+  endDate?: string | null;
+  endTime?: string | null;
+  registrationStart?: string | null;
+  registrationDeadline?: string | null;
+  capacity?: number | null;
+  limitedSeats: boolean;
+  memberFee: number;
+  nonMemberFee: number;
+  currency: string;
+  paymentInstructions?: string | null;
+  registrationUrl?: string | null;
+  targetAudience: 'MEMBERS' | 'NON_MEMBERS' | 'MEMBERS_AND_NON_MEMBERS';
+}
+
+export interface AdminEventQueue {
+  items: AdminEventRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AdminDashboardResponse {
+  viewer: { displayName: string; role: string };
+  permissions: { reviewApplications: boolean; finalApproval: boolean; verifyPayments: boolean; manageEvents: boolean };
+  kpis: {
+    activeMembers: number; upcomingEvents: number; applicationsNeedingReview?: number;
+    finalApprovals?: number; paymentsToVerify?: number;
+  };
+  charts: {
+    membershipActivity?: Array<{ key: string; label: string; value: number }>;
+    membershipDistribution?: Array<{ code: string; name: string; value: number }>;
+    applicationPipeline?: Array<{ status: string; value: number }>;
+    applicationActivity?: Array<{ key: string; label: string; value: number }>;
+    paymentStatus?: Array<{ status: string; value: number }>;
+  };
+  attention: Array<{
+    kind: 'APPLICATION' | 'PAYMENT'; id: string; reference: string | null; personName: string; status: string;
+    waitingSince: string; waitingLabel: string; href: string; amount?: string; currency?: string;
+  }>;
+  upcomingEvents: Array<{
+    id: string; eventNumber: string | null; title: string; startDate: string; startTime: string;
+    venueType: string; venueName: string | null;
+  }>;
+  recentActivity: Array<{
+    action: string; label: string; entityType: string | null; reference: string | null;
+    actorName: string | null; createdAt: string;
+  }>;
+  operationalInsights: { membershipsExpiringSoon: number; windowDays: 30 };
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -316,6 +429,8 @@ export class ApiClient {
     return this.request<CanonicalUser>('/auth/me');
   }
 
+  getAdminDashboard(): Promise<AdminDashboardResponse> { return this.request('/admin/dashboard'); }
+
   setRegistrationName(fullName: string): Promise<RegistrationNameResult> {
     return this.request<RegistrationNameResult>('/auth/me/name', {
       method: 'PUT', body: JSON.stringify({ fullName }),
@@ -326,6 +441,18 @@ export class ApiClient {
 
   updateProfile(input: unknown): Promise<MemberProfileResponse> {
     return this.request('/profile', { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  authorizeProfilePhotoUpload(input: {
+    originalFileName: string; mimeType: string; fileSize: number;
+  }): Promise<PrivateUploadTarget> {
+    return this.request('/profile/photo-upload', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  finalizeProfilePhotoUpload(uploadToken: string): Promise<MemberProfileResponse> {
+    return this.request('/profile/photo-upload/finalize', {
+      method: 'POST', body: JSON.stringify({ uploadToken }),
+    });
   }
 
   getCurrentApplication(): Promise<MembershipApplicationSummary | null> {
@@ -488,6 +615,43 @@ export class ApiClient {
   getCurrentPayment(): Promise<CurrentPayment | null> { return this.request('/payments/current'); }
 
   getCurrentMembership(): Promise<CurrentMembership | null> { return this.request('/memberships/current'); }
+
+  listEvents(input: { search?: string; category?: string; limit?: number } = {}): Promise<EventRecord[]> {
+    const query = new URLSearchParams();
+    if (input.search) query.set('search', input.search);
+    if (input.category) query.set('category', input.category);
+    if (input.limit) query.set('limit', String(input.limit));
+    const suffix = query.size ? `?${query.toString()}` : '';
+    return this.request(`/events${suffix}`);
+  }
+
+  getEvent(id: string): Promise<EventRecord> { return this.request(`/events/${encodeURIComponent(id)}`); }
+
+  listAdminEvents(input: { page: number; pageSize: number; search: string; category: string; status: string }): Promise<AdminEventQueue> {
+    const query = new URLSearchParams({ page: String(input.page), pageSize: String(input.pageSize), search: input.search,
+      category: input.category, status: input.status });
+    return this.request(`/admin/events?${query.toString()}`);
+  }
+
+  getAdminEvent(id: string): Promise<AdminEventRecord> { return this.request(`/admin/events/${encodeURIComponent(id)}`); }
+
+  createEvent(input: EventInput): Promise<AdminEventRecord> {
+    return this.request('/admin/events', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  updateEvent(id: string, input: EventInput): Promise<AdminEventRecord> {
+    return this.request(`/admin/events/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  publishEvent(id: string): Promise<AdminEventRecord> {
+    return this.request(`/admin/events/${encodeURIComponent(id)}/publish`, { method: 'POST', body: '{}' });
+  }
+
+  cancelEvent(id: string, reason: string): Promise<AdminEventRecord> {
+    return this.request(`/admin/events/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    });
+  }
 
   authorizePaymentReceiptUpload(input: {
     originalFileName: string; mimeType: string; fileSize: number;

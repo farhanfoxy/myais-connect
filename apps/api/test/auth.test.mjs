@@ -20,7 +20,7 @@ const config = validateEnvironment({ DATABASE_URL: 'postgresql://localhost/myais
 
 function account(overrides = {}) {
   return { id: '111e4567-e89b-42d3-a456-426614174000', email: 'person@example.test',
-    supabaseAuthUserId: null, fullName: null, photoUrl: null, role: 'APPLICANT',
+    supabaseAuthUserId: null, fullName: null, photoUrl: null, profilePhotoObjectKey: null, role: 'APPLICANT',
     accountStatus: 'ACTIVE', legacyBase44Id: 'private-legacy-id', ...overrides };
 }
 
@@ -193,10 +193,12 @@ test('RolesGuard uses canonical role, allows unrestricted ACTIVE, and denies mis
     error => error.getStatus() === 403);
 });
 
-test('/auth/me has JWT and ACTIVE guards, returns only safe client fields', () => {
+test('/auth/me has JWT and ACTIVE guards, returns only safe client fields', async () => {
   const guards = Reflect.getMetadata(GUARDS_METADATA, AuthController.prototype.me);
   assert.deepEqual(guards, [SupabaseJwtGuard, ActiveAccountGuard]);
-  const response = new AuthController({}).me(account({ supabaseAuthUserId: userId }));
+  const response = await new AuthController({}, { createDownloadTarget: async () => {
+    throw new Error('not used');
+  } }).me(account({ supabaseAuthUserId: userId }));
   assert.deepEqual(Object.keys(response).sort(),
     ['accountStatus', 'email', 'fullName', 'id', 'photoUrl', 'role']);
   assert(!JSON.stringify(response).includes('private-legacy-id'));

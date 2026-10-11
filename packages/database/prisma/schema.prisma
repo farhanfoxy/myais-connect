@@ -226,17 +226,18 @@ model User {
   legacyCreatedAt DateTime? @db.Timestamptz(3)
   legacyUpdatedAt DateTime? @db.Timestamptz(3)
 
-  role                 UserRole?          @default(APPLICANT)
-  phoneNumber          String?
-  photoUrl             String?
-  accountStatus        UserAccountStatus? @default(ACTIVE)
-  lastLoginAt          DateTime?          @db.Timestamptz(3)
-  email                String?            @unique
-  supabaseAuthUserId   String?            @unique @db.Uuid
-  legacyFullName       String?
-  fullName             String?
-  legacyRole           String?
-  legacyPlatformStatus String?
+  role                  UserRole?          @default(APPLICANT)
+  phoneNumber           String?
+  photoUrl              String?
+  profilePhotoObjectKey String?            @unique
+  accountStatus         UserAccountStatus? @default(ACTIVE)
+  lastLoginAt           DateTime?          @db.Timestamptz(3)
+  email                 String?            @unique
+  supabaseAuthUserId    String?            @unique @db.Uuid
+  legacyFullName        String?
+  fullName              String?
+  legacyRole            String?
+  legacyPlatformStatus  String?
 
   announcementRecordsByCreatedByUser           Announcement[]          @relation("Announcement_createdByUserId")
   applicationDocumentRecordsByUser             ApplicationDocument[]   @relation("ApplicationDocument_userId")

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRight, Check, LockKeyhole } from 'lucide-react';
+import { OfficialMyaisMark } from '@/components/brand-mark';
 import { cn } from '@/lib/utils';
 import type { StatusTone } from '@/lib/member-status';
 
@@ -22,8 +22,7 @@ export function WelcomeBanner({ role, name, context, membershipActive = false }:
   return <section className="welcome-banner"><div><div className="welcome-role-row"><span className="welcome-role">{role}</span>
     {membershipActive && <span className="welcome-membership-status"><i />Membership Active</span>}</div>
     <h2>Welcome back, {name}.</h2><p>{context}</p></div>
-    <span className="welcome-brand" aria-hidden="true"><Image src="/brand/myais-connect-mark.png" width={1200}
-      height={1200} sizes="74px" alt="" /></span></section>;
+    <OfficialMyaisMark className="welcome-brand" decorative /></section>;
 }
 
 export function StatusBadge({ children, tone = 'neutral' }: Readonly<{

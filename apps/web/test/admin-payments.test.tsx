@@ -6,11 +6,13 @@ import userEvent from '@testing-library/user-event';
 import { PaymentQueue, formatMoney } from '@/components/admin/payment-queue';
 import { PaymentReviewDetail } from '@/components/admin/payment-review-detail';
 import AdminOverviewPage from '@/app/(protected)/admin/page';
-import { ApiClient, ApiError, type ReviewerPaymentDetail, type ReviewerPaymentQueue } from '@/lib/api-client';
+import { ApiClient, ApiError, type AdminDashboardResponse, type ReviewerPaymentDetail,
+  type ReviewerPaymentQueue } from '@/lib/api-client';
 import { canReviewPayments } from '@/lib/roles';
 
 const fixture = vi.hoisted(() => ({
   role: 'TREASURER' as string | null,
+  getAdminDashboard: vi.fn(),
   listReviewerPayments: vi.fn(), getReviewerPayment: vi.fn(), getReviewerPaymentReceiptDownload: vi.fn(),
   verifyReviewerPayment: vi.fn(), rejectReviewerPayment: vi.fn(),
 }));
@@ -23,6 +25,15 @@ vi.mock('@/components/auth/auth-provider', () => ({
 }));
 
 vi.mock('@/lib/admin-api', () => ({ createAdminApiClient: () => fixture }));
+vi.mock('recharts', async () => {
+  const React = await import('react');
+  const Element = ({ children }: { children?: React.ReactNode }) => React.createElement('div', {}, children);
+  return {
+    ResponsiveContainer: Element, BarChart: Element, LineChart: Element, PieChart: Element, Pie: Element,
+    Bar: Element, Line: Element, CartesianGrid: Element, Tooltip: Element, XAxis: Element, YAxis: Element,
+    Cell: () => null,
+  };
+});
 
 const queue: ReviewerPaymentQueue = {
   items: [{ id: 'payment-id', paymentReference: 'MYAIS-PAY-2026-000001', applicantName: 'Aisyah Rahman',
@@ -32,6 +43,18 @@ const queue: ReviewerPaymentQueue = {
     createdAt: '2026-09-19T08:00:00.000Z' }],
   page: 1, pageSize: 15, total: 1, totalPages: 1,
 };
+
+function dashboard(role = 'TREASURER'): AdminDashboardResponse {
+  return {
+    viewer: { displayName: 'Treasurer Person', role },
+    permissions: { reviewApplications: role === 'SYSTEM_ADMINISTRATOR', finalApproval: role === 'SYSTEM_ADMINISTRATOR',
+      verifyPayments: true, manageEvents: role === 'SYSTEM_ADMINISTRATOR' },
+    kpis: { activeMembers: 12, upcomingEvents: 1, paymentsToVerify: 2,
+      ...(role === 'SYSTEM_ADMINISTRATOR' ? { applicationsNeedingReview: 3, finalApprovals: 1 } : {}) },
+    charts: { paymentStatus: [{ status: 'SUBMITTED', value: 2 }] }, attention: [], upcomingEvents: [],
+    recentActivity: [], operationalInsights: { membershipsExpiringSoon: 0, windowDays: 30 },
+  };
+}
 
 function detail(status = 'SUBMITTED'): ReviewerPaymentDetail {
   return {
@@ -52,6 +75,7 @@ function detail(status = 'SUBMITTED'): ReviewerPaymentDetail {
 
 beforeEach(() => {
   fixture.role = 'TREASURER';
+  fixture.getAdminDashboard.mockReset().mockResolvedValue(dashboard());
   fixture.listReviewerPayments.mockReset().mockResolvedValue(queue);
   fixture.getReviewerPayment.mockReset().mockResolvedValue(detail());
   fixture.getReviewerPaymentReceiptDownload.mockReset().mockResolvedValue({
@@ -77,18 +101,19 @@ describe('payment role policy', () => {
 });
 
 describe('admin overview integration', () => {
-  it('links Treasurer directly to the real payment queue', () => {
+  it('links Treasurer directly to the real payment queue', async () => {
     fixture.role = 'TREASURER';
     render(<AdminOverviewPage />);
-    expect(screen.getByRole('link', { name: /Payment verification/ }).getAttribute('href')).toBe('/admin/payments');
+    expect((await screen.findByRole('link', { name: /Verify payments/ })).getAttribute('href')).toBe('/admin/payments');
     expect(screen.queryByRole('link', { name: /Application review/ })).toBeNull();
   });
 
-  it('shows both real work areas to System Administrator without fake metrics', () => {
+  it('shows both real work areas to System Administrator without fake metrics', async () => {
     fixture.role = 'SYSTEM_ADMINISTRATOR';
+    fixture.getAdminDashboard.mockResolvedValue(dashboard('SYSTEM_ADMINISTRATOR'));
     render(<AdminOverviewPage />);
-    expect(screen.getByRole('link', { name: /Application review/ }).getAttribute('href')).toBe('/admin/applications');
-    expect(screen.getByRole('link', { name: /Payment verification/ }).getAttribute('href')).toBe('/admin/payments');
+    expect((await screen.findByRole('link', { name: /Application queue/ })).getAttribute('href')).toBe('/admin/applications');
+    expect(screen.getByRole('link', { name: /Verify payments/ }).getAttribute('href')).toBe('/admin/payments');
     expect(document.body.textContent).not.toMatch(/revenue|conversion|growth/i);
   });
 });

@@ -22,7 +22,7 @@ const membership: CurrentMembership = {
   activatedAt: '2026-03-01T01:02:03.000Z',
 };
 const profile: MemberProfileResponse = {
-  email: 'member@example.test', exists: true,
+  email: 'member@example.test', photoUrl: null, exists: true,
   profile: { fullName: 'Profile Person', phoneNumber: null, identificationType: null, identificationNumber: null,
     nationality: null, dateOfBirth: null, gender: 'FEMALE', addressLine1: null, addressLine2: null, city: null,
     state: null, postcode: null, country: null, institution: null, occupation: null, department: null,
@@ -35,6 +35,7 @@ beforeEach(() => {
   fixture.getProfile.mockReset().mockResolvedValue(profile);
   fixture.print.mockReset(); fixture.share.mockReset().mockResolvedValue(undefined);
   fixture.user.photoUrl = null;
+  profile.photoUrl = null;
   vi.stubGlobal('print', fixture.print);
   Reflect.deleteProperty(navigator, 'share');
 });
@@ -45,9 +46,12 @@ describe('digital membership card', () => {
     const view = render(<DigitalMembershipCard />);
     expect((await screen.findAllByText('MYAIS-2026-000123')).length).toBeGreaterThan(0);
     expect(screen.getByText('Member number')).toBeTruthy();
-    const inlineAisLogo = screen.getByAltText('AIS Malaysia Chapter');
-    expect(inlineAisLogo.closest('.digital-card')).toBeTruthy();
-    expect(inlineAisLogo.getAttribute('src')).toContain('ais-malaysia-chapter-mark.png');
+    const officialLogo = screen.getByAltText('Association for Information Systems Malaysia Chapter (MyAIS)');
+    expect(officialLogo.closest('.digital-card')).toBeTruthy();
+    expect(officialLogo.closest('.official-myais-mark')).toBeTruthy();
+    expect(officialLogo.getAttribute('src')).toContain('myais-official-logo.jpg');
+    expect(view.container.querySelectorAll('.digital-card img')).toHaveLength(1);
+    expect(view.container.querySelector('.digital-card-brand-row')?.textContent).toBe('MyAIS Connect');
     expect(screen.getAllByText('Associate Member').length).toBeGreaterThan(0);
     expect(screen.getAllByText('1 Mar 2026').length).toBeGreaterThan(0);
     expect(screen.getByText('28 Feb 2027')).toBeTruthy();
@@ -97,6 +101,15 @@ describe('digital membership card', () => {
     fireEvent.error(photo);
     expect((await screen.findByLabelText('Initials for Ms Profile Person')).textContent).toBe('PP');
     expect(memberInitials('Mr Ahmad Bin Ali')).toBe('AA');
+  });
+
+  it('prefers the native profile response photo over the legacy canonical fallback', async () => {
+    profile.photoUrl = 'https://signed.example.test/native-photo';
+    fixture.user.photoUrl = 'https://legacy.example.test/photo';
+    render(<DigitalMembershipCard />);
+    const photo = await screen.findByAltText('Profile photo of Ms Profile Person');
+    expect(photo.getAttribute('src')).toBe('https://signed.example.test/native-photo');
+    expect(document.body.textContent).not.toContain('PROFILE_PHOTO');
   });
 
   it('prints with browser facilities and leaves download honestly unavailable', async () => {

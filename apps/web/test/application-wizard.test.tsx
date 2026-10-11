@@ -29,7 +29,7 @@ vi.mock('@/lib/member-api', () => ({ createMemberApiClient: () => ({
   getApplicationDocumentDownload: fixture.getApplicationDocumentDownload, submitApplication: fixture.submitApplication,
 }) }));
 
-const completeProfile: MemberProfileResponse = { email: 'member@example.test', exists: true, profile: {
+const completeProfile: MemberProfileResponse = { email: 'member@example.test', photoUrl: null, exists: true, profile: {
   fullName: 'Aisyah Rahman', phoneNumber: '+60123456789', identificationType: 'NRIC', identificationNumber: 'id-1',
   nationality: 'Malaysian', dateOfBirth: '1990-01-01', gender: 'FEMALE', addressLine1: '1 Jalan Ilmu',
   addressLine2: null, city: 'Kuala Lumpur', state: 'Kuala Lumpur', postcode: '50000', country: 'Malaysia',

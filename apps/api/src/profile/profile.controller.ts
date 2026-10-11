@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { ActiveAccountGuard } from '../auth/active-account.guard.js';
 import type { CanonicalPrincipal } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -18,5 +18,15 @@ export class ProfileController {
   @Put()
   upsertOwn(@CurrentUser() user: CanonicalPrincipal, @Body() input: unknown) {
     return this.profiles.upsertOwn(user.id, input);
+  }
+
+  @Post('photo-upload')
+  initiatePhotoUpload(@CurrentUser() user: CanonicalPrincipal, @Body() input: unknown) {
+    return this.profiles.initiatePhotoUpload(user.id, input);
+  }
+
+  @Post('photo-upload/finalize')
+  finalizePhotoUpload(@CurrentUser() user: CanonicalPrincipal, @Body() input: unknown) {
+    return this.profiles.finalizePhotoUpload(user.id, input);
   }
 }

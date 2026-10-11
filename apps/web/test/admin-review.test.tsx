@@ -202,11 +202,40 @@ describe('application detail and actions', () => {
     await user.click(await screen.findByRole('button', { name: 'Approve application' }));
     expect(fixture.listReviewerMembershipTypes).toHaveBeenCalledOnce();
     expect(await screen.findByRole('option', { name: 'Honorary Member (HONORARY)' })).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Approved membership type'), 'honorary-id');
-    await user.click(within(screen.getByRole('dialog', { name: 'Approve application' }))
-      .getByRole('button', { name: 'Approve application' }));
+    expect((screen.getByLabelText('Membership type') as HTMLSelectElement).value).toBe('ordinary-id');
+    await user.selectOptions(screen.getByLabelText('Membership type'), 'honorary-id');
+    await user.click(within(screen.getByRole('dialog', { name: 'Final membership approval' }))
+      .getByRole('button', { name: 'Approve membership' }));
     await waitFor(() => expect(fixture.approveApplication).toHaveBeenCalledWith('application-id',
       { approvedMembershipTypeId: 'honorary-id', remarks: '' }));
+    expect(await screen.findByText('Membership application approved as Honorary Member.')).toBeTruthy();
+  });
+
+  it('requires and focuses a membership type when no recommendation matches', async () => {
+    const value = detail('RECOMMENDED_FOR_APPROVAL'); value.recommendedMembershipType = null;
+    fixture.getReviewerApplication.mockResolvedValue(value);
+    const user = userEvent.setup(); render(<ApplicationReviewDetail applicationId="application-id" />);
+    await user.click(await screen.findByRole('button', { name: 'Approve application' }));
+    await screen.findByRole('option', { name: 'Ordinary Member (ORDINARY)' });
+    await user.click(screen.getByRole('button', { name: 'Approve membership' }));
+    const field = screen.getByLabelText('Membership type');
+    expect(screen.getByText('Select a membership type before approving.')).toBeTruthy();
+    expect(document.activeElement).toBe(field);
+    expect(fixture.approveApplication).not.toHaveBeenCalled();
+  });
+
+  it('preserves the selected membership type after a sanitized API failure', async () => {
+    fixture.getReviewerApplication.mockResolvedValue(detail('RECOMMENDED_FOR_APPROVAL'));
+    fixture.approveApplication.mockRejectedValueOnce(new ApiError(500, 'request', 'private backend detail'));
+    const user = userEvent.setup(); render(<ApplicationReviewDetail applicationId="application-id" />);
+    await user.click(await screen.findByRole('button', { name: 'Approve application' }));
+    await screen.findByRole('option', { name: 'Honorary Member (HONORARY)' });
+    const field = screen.getByLabelText('Membership type') as HTMLSelectElement;
+    await user.selectOptions(field, 'honorary-id');
+    await user.click(screen.getByRole('button', { name: 'Approve membership' }));
+    expect(await screen.findByText('We could not complete this review action. No change was made.')).toBeTruthy();
+    expect(field.value).toBe('honorary-id');
+    expect(document.body.textContent).not.toContain('private backend detail');
   });
 
   it('does not expose final approval to other reviewer roles', async () => {

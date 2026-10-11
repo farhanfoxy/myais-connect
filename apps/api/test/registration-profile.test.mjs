@@ -7,13 +7,14 @@ import { MembershipTypesController } from '../dist/membership-types/membership-t
 import { MembershipTypesService } from '../dist/membership-types/membership-types.service.js';
 import { ProfileController } from '../dist/profile/profile.controller.js';
 import { ProfileService } from '../dist/profile/profile.service.js';
+import { InMemoryPrivateStorage } from '../dist/storage/in-memory-private-storage.js';
 import { SupabaseJwtGuard } from '../dist/auth/supabase-jwt.guard.js';
 
 const ownId = '111e4567-e89b-42d3-a456-426614174000';
 
 function principal(overrides = {}) {
   return { id: ownId, email: 'person@example.test', supabaseAuthUserId: '222e4567-e89b-42d3-a456-426614174000',
-    fullName: null, photoUrl: null, role: 'APPLICANT', accountStatus: 'ACTIVE', ...overrides };
+    fullName: null, photoUrl: null, profilePhotoObjectKey: null, role: 'APPLICANT', accountStatus: 'ACTIVE', ...overrides };
 }
 
 function validProfile(overrides = {}) {
@@ -27,8 +28,10 @@ function validProfile(overrides = {}) {
 }
 
 function profileDatabase({ existing = null, userId = ownId } = {}) {
+  const storage = new InMemoryPrivateStorage();
   const state = {
-    user: { id: userId, email: 'person@example.test', fullName: 'User Name', legacyFullName: 'Legacy Name' },
+    user: { id: userId, email: 'person@example.test', fullName: 'User Name', legacyFullName: 'Legacy Name',
+      photoUrl: 'https://legacy.example.test/photo.jpg', profilePhotoObjectKey: null },
     profile: existing,
     profileCreates: 0,
     profileUpdates: 0,
@@ -50,11 +53,15 @@ function profileDatabase({ existing = null, userId = ownId } = {}) {
         return { id: state.profile.id };
       },
     },
-    user: { async update({ where, data }) { assert.equal(where.id, userId); Object.assign(state.user, data); } },
+    user: {
+      async findUnique({ where }) { return where.id === userId ? { profilePhotoObjectKey: state.user.profilePhotoObjectKey } : null; },
+      async update({ where, data }) { assert.equal(where.id, userId); Object.assign(state.user, data); return { id: userId }; },
+    },
     eventRegistration: {
       async updateMany({ where, data }) { assert.equal(where.userId, userId); state.eventName = data.attendeeName; return { count: 2 }; },
     },
     auditLog: { async create({ data }) { state.audits.push(data); return data; } },
+    async $queryRaw() { return [{ lock: 'ok' }]; },
   };
   const client = {
     user: {
@@ -65,7 +72,7 @@ function profileDatabase({ existing = null, userId = ownId } = {}) {
     },
     async $transaction(work) { return work(transaction); },
   };
-  return { state, service: new ProfileService({ client }) };
+  return { state, storage, service: new ProfileService({ client }, storage) };
 }
 
 test('registration and profile controllers require JWT plus ACTIVE account guards', () => {
@@ -113,6 +120,7 @@ test('no profile returns safe initialization with profile/User/legacy name prior
   const result = await database.service.getOwn(ownId);
   assert.equal(result.exists, false);
   assert.equal(result.email, 'person@example.test');
+  assert.equal(result.photoUrl, 'https://legacy.example.test/photo.jpg');
   assert.equal(result.profile.fullName, 'User Name');
   assert.equal(result.profile.aisMember, false);
   assert.equal(result.profile.profileCompletionPercentage, 0);
@@ -126,6 +134,42 @@ test('no profile returns safe initialization with profile/User/legacy name prior
   const existing = await database.service.getOwn(ownId);
   assert.equal(existing.profile.fullName, 'Profile Name');
   assert.equal(existing.profile.profileCompletionPercentage, 100);
+});
+
+test('profile photo upload is private, owner-scoped, validated, and preserves legacy provenance', async () => {
+  const database = profileDatabase();
+  for (const mimeType of ['image/jpeg', 'image/png', 'image/webp']) {
+    const target = await database.service.initiatePhotoUpload(ownId, {
+      originalFileName: `photo.${mimeType.split('/')[1]}`, mimeType, fileSize: 1024,
+    });
+    assert.equal(target.method, 'PUT');
+    assert(!JSON.stringify(target).includes(ownId));
+  }
+  for (const input of [
+    { originalFileName: 'photo.gif', mimeType: 'image/gif', fileSize: 1024 },
+    { originalFileName: 'photo.jpg', mimeType: 'image/jpeg', fileSize: 0 },
+    { originalFileName: 'photo.jpg', mimeType: 'image/jpeg', fileSize: 5 * 1024 * 1024 + 1 },
+  ]) await assert.rejects(database.service.initiatePhotoUpload(ownId, input), error => error.getStatus() === 400);
+
+  const target = await database.service.initiatePhotoUpload(ownId, {
+    originalFileName: 'member.jpg', mimeType: 'image/jpeg', fileSize: 2048,
+  });
+  database.storage.completeUpload(target.uploadToken);
+  const result = await database.service.finalizePhotoUpload(ownId, { uploadToken: target.uploadToken });
+  assert.match(result.photoUrl, /^memory-private-download:/);
+  assert.equal(database.state.user.photoUrl, 'https://legacy.example.test/photo.jpg');
+  assert.match(database.state.user.profilePhotoObjectKey, new RegExp(`^profiles/${ownId}/`));
+  assert(!JSON.stringify(result).includes('profilePhotoObjectKey'));
+  assert(!JSON.stringify(result).includes(database.state.user.profilePhotoObjectKey));
+  await assert.rejects(database.service.finalizePhotoUpload(ownId, { uploadToken: target.uploadToken }),
+    error => error.getStatus() === 400);
+
+  const foreign = await database.service.initiatePhotoUpload(ownId, {
+    originalFileName: 'foreign.png', mimeType: 'image/png', fileSize: 512,
+  });
+  database.storage.completeUpload(foreign.uploadToken);
+  await assert.rejects(database.service.finalizePhotoUpload('333e4567-e89b-42d3-a456-426614174000',
+    { uploadToken: foreign.uploadToken }), error => error.getStatus() === 404);
 });
 
 test('profile validation enforces name, required fields, enums, calendar dates, AIS conditions and rejects userId', async () => {

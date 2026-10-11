@@ -20,7 +20,7 @@ const actionContent: Record<ActionKind, { title: string; description: string; su
   'start-review': { title: 'Start application review', description: 'Move this application into active review.', submit: 'Start review' },
   'request-information': { title: 'Request additional information', description: 'Tell the applicant exactly what is needed.', submit: 'Send request' },
   'recommend-approval': { title: 'Recommend for approval', description: 'Confirm that this application is ready for final approval.', submit: 'Recommend approval' },
-  approve: { title: 'Approve application', description: 'Select the membership type to be approved. The server will apply the correct outcome.', submit: 'Approve application' },
+  approve: { title: 'Final membership approval', description: 'Confirm the membership type before approving this application.', submit: 'Approve membership' },
   reject: { title: 'Reject application', description: 'Provide a clear reason that will be recorded with this decision.', submit: 'Reject application' },
 };
 
@@ -51,20 +51,23 @@ function safeActionError(error: unknown): string {
 }
 
 function ReviewDialog({ kind, applicationId, membershipTypes, membershipTypesLoading, membershipTypesError,
-  close, complete }: Readonly<{
+  membershipTypeId, setMembershipTypeId, close, complete }: Readonly<{
   kind: ActionKind;
   applicationId: string;
   membershipTypes: ReviewerMembershipTypeOption[];
   membershipTypesLoading: boolean;
   membershipTypesError?: boolean;
+  membershipTypeId: string;
+  setMembershipTypeId(value: string): void;
   close(): void;
   complete(message: string): Promise<void>;
 }>) {
   const api = useMemo(() => createAdminApiClient(), []);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const membershipTypeRef = useRef<HTMLSelectElement>(null);
   const [remarks, setRemarks] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [membershipTypeId, setMembershipTypeId] = useState('');
+  const [membershipTypeError, setMembershipTypeError] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const content = actionContent[kind];
@@ -78,9 +81,11 @@ function ReviewDialog({ kind, applicationId, membershipTypes, membershipTypesLoa
   }, [close, pending]);
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); setError('');
+    event.preventDefault(); setError(''); setMembershipTypeError(false);
     if (requiresRemarks && !remarks.trim()) { setError('Remarks are required.'); return; }
-    if (kind === 'approve' && !membershipTypeId) { setError('Select an approved membership type.'); return; }
+    if (kind === 'approve' && !membershipTypeId) {
+      setMembershipTypeError(true); membershipTypeRef.current?.focus(); return;
+    }
     setPending(true);
     try {
       if (kind === 'start-review') await api.startApplicationReview(applicationId, remarks.trim());
@@ -90,7 +95,10 @@ function ReviewDialog({ kind, applicationId, membershipTypes, membershipTypesLoa
       if (kind === 'approve') await api.approveApplication(applicationId,
         { approvedMembershipTypeId: membershipTypeId, remarks: remarks.trim() });
       if (kind === 'reject') await api.rejectApplication(applicationId, remarks.trim());
-      await complete(`${content.title} completed.`);
+      const selectedType = membershipTypes.find(type => type.id === membershipTypeId);
+      await complete(kind === 'approve' && selectedType
+        ? `Membership application approved as ${selectedType.name}.`
+        : `${content.title} completed.`);
     } catch (actionError) {
       setError(safeActionError(actionError)); setPending(false);
     }
@@ -103,13 +111,16 @@ function ReviewDialog({ kind, applicationId, membershipTypes, membershipTypesLoa
       <button ref={closeRef} aria-label="Close dialog" onClick={close} disabled={pending}><X /></button></header>
     <p id="review-dialog-description">{content.description}</p>
     <form onSubmit={submit}>
-      {kind === 'approve' && <label className="review-form-field"><span>Approved membership type <strong>Required</strong></span>
-        <select aria-label="Approved membership type" value={membershipTypeId} disabled={membershipTypesLoading || pending}
-          onChange={event => setMembershipTypeId(event.target.value)} aria-invalid={Boolean(error && !membershipTypeId) || undefined}>
+      {kind === 'approve' && <label className="review-form-field"><span>Membership type <strong>Required</strong></span>
+        <select ref={membershipTypeRef} aria-label="Membership type" value={membershipTypeId}
+          disabled={membershipTypesLoading || pending} aria-describedby={membershipTypeError ? 'membership-type-error' : undefined}
+          onChange={event => { setMembershipTypeId(event.target.value); setMembershipTypeError(false); }}
+          aria-invalid={membershipTypeError || undefined}>
           <option value="">{membershipTypesLoading ? 'Loading membership types…' : membershipTypesError
             ? 'Membership types unavailable' : 'Select membership type'}</option>
           {membershipTypes.map(type => <option key={type.id} value={type.id}>{type.name} ({type.code})</option>)}
-        </select></label>}
+        </select>{membershipTypeError && <small className="review-field-error" id="membership-type-error">
+          Select a membership type before approving.</small>}</label>}
       {kind === 'approve' && membershipTypesError && <div className="review-action-error" role="alert"><AlertCircle />
         Active membership types could not be loaded. Close this dialog and try again.</div>}
       <label className="review-form-field"><span>{requiresRemarks ? 'Remarks' : 'Remarks (optional)'}
@@ -157,6 +168,7 @@ export function ApplicationReviewDetail({ applicationId }: Readonly<{ applicatio
   const [types, setTypes] = useState<ReviewerMembershipTypeOption[]>([]);
   const [typesLoading, setTypesLoading] = useState(false);
   const [typesError, setTypesError] = useState(false);
+  const [approvalMembershipTypeId, setApprovalMembershipTypeId] = useState('');
   const role = state.status === 'authenticated' ? state.user.role : null;
 
   const load = useCallback(async () => {
@@ -175,8 +187,12 @@ export function ApplicationReviewDetail({ applicationId }: Readonly<{ applicatio
   function openAction(next: ActionKind) {
     setNotice(''); setAction(next);
     if (next === 'approve') {
-      setTypesLoading(true); setTypes([]); setTypesError(false);
-      api.listReviewerMembershipTypes().then(setTypes).catch(() => { setTypes([]); setTypesError(true); })
+      setTypesLoading(true); setTypes([]); setTypesError(false); setApprovalMembershipTypeId('');
+      api.listReviewerMembershipTypes().then(nextTypes => {
+        setTypes(nextTypes);
+        const recommendedCode = application?.recommendedMembershipType?.code;
+        setApprovalMembershipTypeId(nextTypes.find(type => type.code === recommendedCode)?.id ?? '');
+      }).catch(() => { setTypes([]); setTypesError(true); })
         .finally(() => setTypesLoading(false));
     }
   }
@@ -259,6 +275,7 @@ export function ApplicationReviewDetail({ applicationId }: Readonly<{ applicatio
     </div><ActionPanel application={application} role={role} open={openAction} /></div>}
     {action && <ReviewDialog kind={action} applicationId={applicationId} membershipTypes={types}
       membershipTypesLoading={typesLoading} membershipTypesError={typesError}
+      membershipTypeId={approvalMembershipTypeId} setMembershipTypeId={setApprovalMembershipTypeId}
       close={() => setAction(null)} complete={complete} />}
   </PageContainer>;
 }

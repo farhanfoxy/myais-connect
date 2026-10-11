@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react';
 import { memberProfileInputSchema } from '@myais/validation';
-import { BadgeCheck, BriefcaseBusiness, MapPin, Save, UserRound, UsersRound } from 'lucide-react';
+import { BadgeCheck, BriefcaseBusiness, MapPin, Save, UploadCloud, UserRound, UsersRound } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { PageContainer, PageHeading } from '@/components/dashboard/dashboard-ui';
 import { Button } from '@/components/ui/button';
 import { Feedback } from '@/components/ui/feedback';
 import { Spinner } from '@/components/ui/spinner';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import type { MemberProfileFields, MemberProfileResponse } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
+import { profilePhotoAccept, uploadProfilePhoto, validateProfilePhoto } from '@/lib/profile-photo-upload';
 
 type FormState = {
   fullName: string; identificationType: '' | 'NRIC' | 'PASSPORT' | 'OTHER'; identificationNumber: string;
@@ -73,6 +75,10 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoStage, setPhotoStage] = useState<'authorizing' | 'uploading' | 'finalizing' | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError(false);
@@ -92,6 +98,9 @@ export default function ProfilePage() {
     }).catch(() => { if (active) setLoadError(true); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [state.status]);
+  useEffect(() => {
+    return () => { if (photoPreview && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(photoPreview); };
+  }, [photoPreview]);
   if (state.status !== 'authenticated') return null;
 
   function setValue<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -128,6 +137,32 @@ export default function ProfilePage() {
     finally { setSaving(false); }
   }
 
+  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    setPhotoMessage(null);
+    if (!file) return;
+    const validationError = validateProfilePhoto(file);
+    if (validationError) { setPhotoFile(null); setPhotoPreview(null); setPhotoMessage({ tone: 'error', text: validationError }); return; }
+    let preview: string | null = null;
+    try { if (typeof URL.createObjectURL === 'function') preview = URL.createObjectURL(file); } catch { /* Preview is optional. */ }
+    setPhotoPreview(preview); setPhotoFile(file);
+  }
+
+  async function savePhoto() {
+    if (!photoFile || photoStage) return;
+    setPhotoMessage(null);
+    try {
+      const next = await uploadProfilePhoto(createMemberApiClient(), photoFile, fetch, setPhotoStage);
+      setResponse(next); setPhotoFile(null); setPhotoPreview(null); setPhotoStage(null);
+      setPhotoMessage({ tone: 'success', text: 'Profile photo updated.' });
+      await refresh();
+    } catch {
+      setPhotoStage(null); setPhotoFile(null); setPhotoPreview(null);
+      setPhotoMessage({ tone: 'error', text: 'We could not update your profile photo. Your current photo is unchanged.' });
+    }
+  }
+
   if (loading) return <PageContainer className="profile-page"><div className="profile-loading" role="status">
     <Spinner /> Loading your profile…</div></PageContainer>;
   if (loadError || !response) return <PageContainer className="profile-page"><PageHeading eyebrow="Member profile"
@@ -136,15 +171,24 @@ export default function ProfilePage() {
   </PageContainer>;
 
   const completion = response.profile.profileCompletionPercentage;
-  const initial = (form.fullName || response.email).charAt(0).toUpperCase();
+  const avatarName = form.fullName || response.email;
 
   return <PageContainer className="profile-page">
     <PageHeading eyebrow="Member profile" title="Profile"
       description="Keep your personal and professional information accurate for membership applications." />
     <section className="profile-overview">
-      <div className="profile-identity"><span className="profile-avatar">{initial}</span><div>
+      <div className="profile-identity"><UserAvatar className="profile-avatar" photoUrl={photoPreview || response.photoUrl}
+        name={avatarName} /><div className="profile-identity-copy">
         <h2>{form.fullName || 'Complete your profile'}</h2><p>{response.email}</p>
-        <span>Profile photo editing is not available yet.</span></div></div>
+        <div className="profile-photo-controls"><label className="button button-secondary" aria-disabled={Boolean(photoStage)}>
+          <UploadCloud size={15} />{response.photoUrl ? 'Change photo' : 'Upload photo'}
+          <input type="file" accept={profilePhotoAccept} disabled={Boolean(photoStage)} onChange={choosePhoto} /></label>
+          {photoFile && <Button type="button" disabled={Boolean(photoStage)} onClick={() => void savePhoto()}>
+            {photoStage ? <><Spinner /> Uploadingâ€¦</> : 'Save photo'}</Button>}</div>
+        <span>JPEG, PNG or WebP Â· Maximum 5 MB</span>
+        <div className="profile-photo-feedback" aria-live="polite">{photoMessage &&
+          <span className={photoMessage.tone === 'success' ? 'save-success' : 'save-error'}>{photoMessage.text}</span>}</div>
+      </div></div>
       <div className="profile-completion"><div><span>Profile completeness</span><strong>{completion}%</strong></div>
         <div className="completion-track" role="progressbar" aria-label="Profile completeness" aria-valuemin={0}
           aria-valuemax={100} aria-valuenow={completion}><i style={{ width: `${completion}%` }} /></div>

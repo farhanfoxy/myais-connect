@@ -12,6 +12,8 @@ import { ReviewerApplicationsModule } from './reviewer-applications/reviewer-app
 import { PaymentsModule } from './payments/payments.module.js';
 import { ReviewerPaymentsModule } from './reviewer-payments/reviewer-payments.module.js';
 import { MembershipsModule } from './memberships/memberships.module.js';
+import { EventsModule } from './events/events.module.js';
+import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module.js';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { MembershipsModule } from './memberships/memberships.module.js';
     PaymentsModule,
     ReviewerPaymentsModule,
     MembershipsModule,
+    EventsModule,
+    AdminDashboardModule,
   ],
   controllers: [HealthController],
 })

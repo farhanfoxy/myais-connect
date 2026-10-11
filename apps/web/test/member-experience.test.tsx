@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DashboardPage from '@/app/(protected)/dashboard/page';
 import ProfilePage from '@/app/(protected)/profile/page';
@@ -9,9 +9,11 @@ import type { CurrentPayment, MemberProfileResponse, MembershipApplicationSummar
 
 const fixture = vi.hoisted(() => ({
   refresh: vi.fn(async () => ({ status: 'authenticated' })),
-  getProfile: vi.fn(), updateProfile: vi.fn(), getCurrentApplication: vi.fn(),
+  getProfile: vi.fn(), updateProfile: vi.fn(), authorizeProfilePhotoUpload: vi.fn(), finalizeProfilePhotoUpload: vi.fn(),
+  providerUpload: vi.fn(), getCurrentApplication: vi.fn(),
   listApplications: vi.fn(), getCurrentPayment: vi.fn(),
   getCurrentMembership: vi.fn(),
+  listEvents: vi.fn(),
   state: {
     status: 'authenticated' as const,
     user: { id: 'user-1', email: 'member@example.test', fullName: 'Aisyah Rahman', photoUrl: null,
@@ -26,14 +28,17 @@ vi.mock('@/components/auth/auth-provider', () => ({
 vi.mock('@/lib/member-api', () => ({
   createMemberApiClient: () => ({
     getProfile: fixture.getProfile, updateProfile: fixture.updateProfile,
+    authorizeProfilePhotoUpload: fixture.authorizeProfilePhotoUpload,
+    finalizeProfilePhotoUpload: fixture.finalizeProfilePhotoUpload,
     getCurrentApplication: fixture.getCurrentApplication, listApplications: fixture.listApplications,
     getCurrentPayment: fixture.getCurrentPayment,
     getCurrentMembership: fixture.getCurrentMembership,
+    listEvents: fixture.listEvents,
   }),
 }));
 
 const emptyProfile: MemberProfileResponse = {
-  email: 'member@example.test', exists: false,
+  email: 'member@example.test', photoUrl: null, exists: false,
   profile: {
     fullName: 'Aisyah Rahman', phoneNumber: null, identificationType: null, identificationNumber: null,
     nationality: null, dateOfBirth: null, gender: null, addressLine1: null, addressLine2: null,
@@ -44,7 +49,7 @@ const emptyProfile: MemberProfileResponse = {
 };
 
 const populatedProfile: MemberProfileResponse = {
-  email: 'member@example.test', exists: true,
+  email: 'member@example.test', photoUrl: null, exists: true,
   profile: {
     fullName: 'Aisyah Rahman', phoneNumber: '+60123456789', identificationType: 'NRIC',
     identificationNumber: 'identity-1', nationality: 'Malaysian', dateOfBirth: '1990-01-02', gender: 'FEMALE',
@@ -71,22 +76,46 @@ const payable: CurrentPayment = {
     paidAt: null, status: 'NOT_SUBMITTED', submittedAt: null, treasurerRemarks: null, rejectionReason: null },
 };
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 beforeEach(() => {
   fixture.state.user.role = 'APPLICANT';
   fixture.refresh.mockClear();
   fixture.getProfile.mockReset().mockResolvedValue(populatedProfile);
   fixture.updateProfile.mockReset().mockResolvedValue(populatedProfile);
+  fixture.authorizeProfilePhotoUpload.mockReset().mockResolvedValue({ uploadToken: 'opaque-photo-token',
+    uploadUrl: 'https://storage.example.test/signed-upload', method: 'PUT', headers: { 'content-type': 'image/jpeg' },
+    expiresAt: '2026-10-01T01:00:00.000Z' });
+  fixture.finalizeProfilePhotoUpload.mockReset().mockResolvedValue({ ...populatedProfile,
+    photoUrl: 'https://storage.example.test/signed-read' });
+  fixture.providerUpload.mockReset().mockResolvedValue(new Response(null, { status: 200 }));
+  vi.stubGlobal('fetch', fixture.providerUpload);
   fixture.getCurrentApplication.mockReset().mockResolvedValue(null);
   fixture.listApplications.mockReset().mockResolvedValue([]);
   fixture.getCurrentPayment.mockReset().mockResolvedValue(null);
   fixture.getCurrentMembership.mockReset().mockResolvedValue(null);
+  fixture.listEvents.mockReset().mockResolvedValue([]);
 });
 
 describe('real member dashboard', () => {
+  it('showcases real events and links to the full Events workspace', async () => {
+    fixture.listEvents.mockResolvedValue([{ id: 'event-1', title: 'MyAIS Digital Forum', category: 'CONFERENCES',
+      summary: 'Professional community programme', description: 'Details', coverImage: null, speakerName: null,
+      speakerTitle: null, eventType: null, venueType: 'ONLINE', venueName: null, physicalAddress: null,
+      startDate: '2099-10-20', startTime: '09:00', endDate: null, endTime: null, registrationStart: null,
+      registrationDeadline: null, capacity: null, limitedSeats: false, memberFee: '0', nonMemberFee: '0', currency: 'MYR',
+      paymentInstructions: null, status: 'PUBLISHED', targetAudience: 'MEMBERS_AND_NON_MEMBERS', eventNumber: null,
+      publishedAt: null, cancellationReason: null, placeholderImageNotice: false, timezone: 'Asia/Kuala_Lumpur',
+      registrationAvailable: false }]);
+    render(<DashboardPage />);
+    expect(await screen.findByRole('heading', { name: 'MyAIS Digital Forum' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'View more events' }).getAttribute('href')).toBe('/events');
+  });
+
   it('renders canonical identity, profile completion and an honest no-application state', async () => {
     render(<DashboardPage />);
     expect(screen.getByText('Welcome back, Aisyah Rahman.')).toBeTruthy();
+    expect(document.querySelector('.welcome-brand.official-myais-mark img')?.getAttribute('src'))
+      .toContain('myais-official-logo.jpg');
     expect(await screen.findByText('100%')).toBeTruthy();
     expect(screen.getAllByText('No application record found').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Your progress' })).toBeTruthy();
@@ -94,7 +123,7 @@ describe('real member dashboard', () => {
     expect(screen.getByLabelText('1 of 5 stages complete')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Next:.*Start application/ }).getAttribute('href')).toBe('/my-application');
     expect(screen.getByRole('heading', { name: 'Featured events' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'View more events' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('link', { name: 'View more events' }).getAttribute('href')).toBe('/events');
     expect(screen.queryByRole('heading', { name: 'Quick actions' })).toBeNull();
   });
 
@@ -222,5 +251,43 @@ describe('member profile', () => {
     expect(await screen.findByText('We could not save your profile. Your changes are still here.')).toBeTruthy();
     expect((screen.getByLabelText('Occupation') as HTMLInputElement).value).toBe('Researcher');
     expect(screen.queryByText('internal provider detail')).toBeNull();
+  });
+
+  it('uploads a validated photo privately, refreshes identity, and shows success', async () => {
+    const user = userEvent.setup(); render(<ProfilePage />);
+    await screen.findByDisplayValue('Universiti Contoh');
+    const file = new File(['photo'], 'member.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText(/Upload photo/), file);
+    await user.click(screen.getByRole('button', { name: 'Save photo' }));
+    await waitFor(() => expect(fixture.finalizeProfilePhotoUpload).toHaveBeenCalledWith('opaque-photo-token'));
+    expect(fixture.authorizeProfilePhotoUpload).toHaveBeenCalledWith({
+      originalFileName: 'member.jpg', mimeType: 'image/jpeg', fileSize: 5,
+    });
+    expect(fixture.providerUpload).toHaveBeenCalledWith('https://storage.example.test/signed-upload',
+      expect.objectContaining({ method: 'PUT', body: file }));
+    expect(await screen.findByText('Profile photo updated.')).toBeTruthy();
+    expect(fixture.refresh).toHaveBeenCalledOnce();
+  });
+
+  it('rejects invalid photo files before upload', async () => {
+    render(<ProfilePage />);
+    await screen.findByDisplayValue('Universiti Contoh');
+    fireEvent.change(screen.getByLabelText(/Upload photo/), {
+      target: { files: [new File(['gif'], 'member.gif', { type: 'image/gif' })] },
+    });
+    expect(await screen.findByText('Choose a JPEG, PNG or WebP photo.')).toBeTruthy();
+    expect(fixture.authorizeProfilePhotoUpload).not.toHaveBeenCalled();
+  });
+
+  it('preserves the current avatar when private photo upload fails', async () => {
+    fixture.getProfile.mockResolvedValue({ ...populatedProfile, photoUrl: 'https://legacy.example.test/photo.jpg' });
+    fixture.authorizeProfilePhotoUpload.mockRejectedValue(new Error('private provider detail'));
+    const user = userEvent.setup(); render(<ProfilePage />);
+    const current = await screen.findByAltText('Profile photo of Aisyah Rahman');
+    await user.upload(screen.getByLabelText(/Change photo/), new File(['png'], 'new.png', { type: 'image/png' }));
+    await user.click(screen.getByRole('button', { name: 'Save photo' }));
+    expect(await screen.findByText(/current photo is unchanged/)).toBeTruthy();
+    expect(current.getAttribute('src')).toBe('https://legacy.example.test/photo.jpg');
+    expect(document.body.textContent).not.toContain('private provider detail');
   });
 });

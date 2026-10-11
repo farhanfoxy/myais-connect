@@ -11,8 +11,9 @@ import {
   SummaryCard, WelcomeBanner,
 } from '@/components/dashboard/dashboard-ui';
 import { MembershipCardVisual } from '@/components/membership/digital-membership-card';
+import { EventCard } from '@/components/events/event-card';
 import type { JourneyStep } from '@/components/dashboard/dashboard-ui';
-import type { CurrentMembership, CurrentPayment, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
+import type { CurrentMembership, CurrentPayment, EventRecord, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { applicationAction, statusLabel, statusTone } from '@/lib/member-status';
 import { humanizeEnum } from '@/lib/roles';
@@ -64,11 +65,13 @@ export default function DashboardPage() {
   const { state } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [events, setEvents] = useState<EventRecord[] | null>(null);
 
   useEffect(() => {
     if (state.status !== 'authenticated') return;
     let active = true;
     const api = createMemberApiClient();
+    void api.listEvents({ limit: 2 }).then(value => { if (active) setEvents(value); }).catch(() => { if (active) setEvents([]); });
     const optionalPayment = api.getCurrentPayment().catch(() => null);
     const optionalMembership = api.getCurrentMembership().then(membership => ({ membership, unavailable: false }))
       .catch(() => ({ membership: null, unavailable: true }));
@@ -116,7 +119,7 @@ export default function DashboardPage() {
       <div className="dashboard-card-highlight"><header><div><p>Digital membership card</p>
         <h2>Your member identity</h2></div><Link className="dashboard-card-link" href="/my-card">View full card</Link></header>
         <MembershipCardVisual membership={activeMembership} profileName={data.profile.profile.fullName}
-          gender={data.profile.profile.gender} canonicalName={user.fullName} photoUrl={user.photoUrl} /></div>
+          gender={data.profile.profile.gender} canonicalName={user.fullName} photoUrl={data.profile.photoUrl ?? user.photoUrl} /></div>
     </section> : <MembershipJourney steps={journey} nextAction={nextAction} nextHref={nextHref} />)}
 
     {data?.membershipUnavailable && <div className="dashboard-inline-notice" role="status">
@@ -126,10 +129,12 @@ export default function DashboardPage() {
     <section className="dashboard-section event-showcase" aria-labelledby="featured-events-heading">
       <SectionHeading id="featured-events-heading" title="Featured events"
         description="Discover upcoming MyAIS and AIS professional activities." />
-      <div className="event-empty-state"><span className="event-empty-icon"><CalendarDays size={23} /></span><div>
-        <h3>Event listings are coming soon</h3>
-        <p>No live event source is available yet. Upcoming events will appear here when the Events workspace is connected.</p></div>
-        <button className="button button-secondary" disabled>View more events</button></div>
+      {events === null ? <div className="dashboard-event-loading" role="status"><span /><span /></div> : events.length > 0 ? <>
+        <div className="dashboard-event-grid">{events.map(event => <EventCard event={event} compact key={event.id} />)}</div>
+        <Link className="dashboard-events-more" href="/events">View more events</Link></> :
+        <div className="event-empty-state"><span className="event-empty-icon"><CalendarDays size={23} /></span><div>
+          <h3>No upcoming events yet</h3><p>Published MyAIS events will appear here when they are scheduled.</p></div>
+          <Link className="button button-secondary" href="/events">View more events</Link></div>}
     </section>
 
     <section className="dashboard-section" aria-labelledby="account-summary-heading">

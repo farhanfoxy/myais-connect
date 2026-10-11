@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../database/prisma.module.js';
+import { StorageModule } from '../storage/storage.module.js';
 import { loadEnvironment } from '../config/environment.js';
 import { ActiveAccountGuard } from './active-account.guard.js';
 import { AuthController } from './auth.controller.js';
@@ -9,7 +10,7 @@ import { SupabaseJwtGuard } from './supabase-jwt.guard.js';
 import { SupabaseJwtVerifier } from './supabase-jwt.verifier.js';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, StorageModule],
   controllers: [AuthController],
   providers: [
     { provide: SupabaseJwtVerifier, useFactory: () => new SupabaseJwtVerifier(loadEnvironment()) },

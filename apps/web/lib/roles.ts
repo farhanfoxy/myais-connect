@@ -32,6 +32,9 @@ export const applicationReviewerRoles = [
 
 export const finalApproverRoles = ['PRESIDENT', 'SYSTEM_ADMINISTRATOR'] as const;
 export const paymentReviewerRoles = ['TREASURER', 'SYSTEM_ADMINISTRATOR'] as const;
+export const eventManagerRoles = [
+  'PRESIDENT', 'DEPUTY_PRESIDENT', 'SECRETARY', 'ASSISTANT_SECRETARY', 'SYSTEM_ADMINISTRATOR',
+] as const;
 
 export function canReviewApplications(role: string | null): boolean {
   return (applicationReviewerRoles as readonly string[]).includes(role ?? '');
@@ -43,6 +46,10 @@ export function canFinallyApprove(role: string | null): boolean {
 
 export function canReviewPayments(role: string | null): boolean {
   return (paymentReviewerRoles as readonly string[]).includes(role ?? '');
+}
+
+export function canManageEvents(role: string | null): boolean {
+  return (eventManagerRoles as readonly string[]).includes(role ?? '');
 }
 
 export function roleFamily(role: string | null): RoleFamily | null {

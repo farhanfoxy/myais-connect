@@ -12,7 +12,7 @@ const fixture = vi.hoisted(() => ({
   state: {
     status: 'authenticated' as const,
     user: {
-      id: 'user-1', email: 'member@example.test', fullName: 'Aisyah Rahman', photoUrl: null,
+      id: 'user-1', email: 'member@example.test', fullName: 'Aisyah Rahman', photoUrl: null as string | null,
       role: 'APPLICANT', accountStatus: 'ACTIVE',
     },
   },
@@ -31,15 +31,32 @@ afterEach(cleanup);
 beforeEach(() => {
   fixture.pathname = '/dashboard';
   fixture.state.user.role = 'APPLICANT';
+  fixture.state.user.photoUrl = null;
   fixture.replace.mockReset();
   fixture.logout.mockClear();
 });
 
 describe('responsive application shell interactions', () => {
+  it('uses the canonical official logo in the shared product header', () => {
+    render(<AppShell><p>Protected content</p></AppShell>);
+    const brand = screen.getByRole('link', { name: 'MyAIS Connect home' }).querySelector('img');
+    expect(brand?.getAttribute('src')).toContain('myais-official-logo.jpg');
+  });
+
   it('links desktop and mobile identity controls directly to profile', () => {
     render(<AppShell><p>Protected content</p></AppShell>);
     expect(screen.getByRole('link', { name: "View Aisyah Rahman's profile" }).getAttribute('href')).toBe('/profile');
     expect(screen.getByRole('link', { name: 'View profile' }).getAttribute('href')).toBe('/profile');
+  });
+
+  it('uses the canonical photo across desktop, popover, mobile, and drawer identity surfaces', async () => {
+    fixture.state.user.photoUrl = 'https://signed.example.test/profile-photo';
+    const user = userEvent.setup(); render(<AppShell><p>Protected content</p></AppShell>);
+    expect(screen.getAllByAltText('Profile photo of Aisyah Rahman').length).toBeGreaterThanOrEqual(2);
+    await user.click(screen.getByRole('button', { name: 'Open account menu' }));
+    expect(screen.getAllByAltText('Profile photo of Aisyah Rahman').length).toBeGreaterThanOrEqual(3);
+    await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    expect(screen.getAllByAltText('Profile photo of Aisyah Rahman').length).toBeGreaterThanOrEqual(3);
   });
 
   it('opens the membership menu and restores trigger focus when Escape closes it', async () => {
@@ -53,11 +70,9 @@ describe('responsive application shell interactions', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('provides feedback for unfinished navigation without pretending the route exists', async () => {
-    const user = userEvent.setup();
+  it('links member event navigation to the live Events workspace', () => {
     render(<AppShell><p>Protected content</p></AppShell>);
-    await user.click(screen.getByRole('button', { name: 'Events' }));
-    expect(screen.getByRole('status').textContent).toContain('Events is coming in a future MyAIS phase.');
+    expect(screen.getByRole('link', { name: 'Events' }).getAttribute('href')).toBe('/events');
   });
 
   it('supports an accessible mobile drawer with Escape and focus restoration', async () => {
@@ -135,7 +150,7 @@ describe('responsive application shell interactions', () => {
     fixture.state.user.role = 'PRESIDENT';
     render(<AppShell><p>Review content</p></AppShell>);
     expect(screen.getAllByRole('link', { name: 'Applications' }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: 'Events' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Events' }).some(link => link.getAttribute('href') === '/admin/events')).toBe(true);
     expect(screen.queryByRole('button', { name: 'News' })).toBeNull();
   });
 
@@ -146,6 +161,7 @@ describe('responsive application shell interactions', () => {
     expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Payments' }).some(link =>
       link.getAttribute('href') === '/admin/payments')).toBe(true);
+    expect(screen.queryByRole('link', { name: 'Events' })).toBeNull();
   });
 
   it('gives System Administrator both operational work areas', () => {
@@ -154,5 +170,6 @@ describe('responsive application shell interactions', () => {
     render(<AppShell><p>Administrator content</p></AppShell>);
     expect(screen.getAllByRole('link', { name: 'Applications' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Payments' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Events' }).length).toBeGreaterThan(0);
   });
 });
