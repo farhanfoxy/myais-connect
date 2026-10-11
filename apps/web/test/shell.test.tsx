@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppShell } from '@/components/app-shell';
+import { ThemeProvider } from '@/components/theme-provider';
 
 const fixture = vi.hoisted(() => ({
   pathname: '/dashboard',
@@ -34,9 +35,26 @@ beforeEach(() => {
   fixture.state.user.photoUrl = null;
   fixture.replace.mockReset();
   fixture.logout.mockClear();
+  window.localStorage.clear();
+  Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => ({ matches: false,
+    media: '(prefers-color-scheme: dark)', onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })) });
 });
 
 describe('responsive application shell interactions', () => {
+  it('changes appearance without changing authorized navigation', async () => {
+    const user = userEvent.setup();
+    render(<ThemeProvider><AppShell><p>Protected content</p></AppShell></ThemeProvider>);
+    expect(screen.getAllByRole('link', { name: 'Dashboard' }).every(link =>
+      link.getAttribute('href') === '/dashboard')).toBe(true);
+    expect(screen.getByRole('link', { name: 'Events' }).getAttribute('href')).toBe('/events');
+    await user.click(screen.getByRole('button', { name: 'Open account menu' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(screen.getAllByRole('link', { name: 'Dashboard' }).every(link =>
+      link.getAttribute('href') === '/dashboard')).toBe(true);
+    expect(screen.getByRole('link', { name: 'Events' }).getAttribute('href')).toBe('/events');
+  });
   it('uses the canonical official logo in the shared product header', () => {
     render(<AppShell><p>Protected content</p></AppShell>);
     const brand = screen.getByRole('link', { name: 'MyAIS Connect home' }).querySelector('img');

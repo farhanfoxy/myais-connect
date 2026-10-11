@@ -50,9 +50,16 @@ function systemDashboard(): AdminDashboardResponse {
 }
 
 beforeEach(() => fixture.getAdminDashboard.mockReset().mockResolvedValue(systemDashboard()));
-afterEach(cleanup);
+afterEach(() => { cleanup(); delete document.documentElement.dataset.theme; });
 
 describe('admin command dashboard', () => {
+  it('renders the complete command dashboard under dark mode', async () => {
+    document.documentElement.dataset.theme = 'dark';
+    render(<AdminCommandDashboard />);
+    expect(await screen.findByRole('heading', { name: 'Membership activations' })).toBeTruthy();
+    expect(document.querySelector('.admin-command-page')).toBeTruthy();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
   it('renders the role, canonical KPI values, real chart values, links and operational panels', async () => {
     render(<AdminCommandDashboard />);
     expect(await screen.findByText('Dr. Hapini', { exact: false })).toBeTruthy();

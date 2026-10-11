@@ -17,7 +17,12 @@ import { createAdminApiClient } from '@/lib/admin-api';
 import { humanizeEnum } from '@/lib/roles';
 import { statusLabel, statusTone } from '@/lib/member-status';
 
-const chartColors = ['#087f8c', '#1da6a9', '#315f84', '#70b9a7', '#d0a348'];
+const chartColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
+const chartTick = { fontSize: 10, fill: 'var(--chart-axis)' };
+const tooltipStyle = { border: '1px solid var(--border)', borderRadius: 10,
+  background: 'var(--chart-tooltip)', color: 'var(--foreground)', boxShadow: 'var(--shadow-sm)' };
+const tooltipLabelStyle = { color: 'var(--foreground)', fontWeight: 700 };
+const tooltipItemStyle = { color: 'var(--foreground-muted)' };
 
 function greeting(): string {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
@@ -131,18 +136,20 @@ export function AdminCommandDashboard() {
         description="Distinct members activated each month" empty={!membershipActivity.some(item => item.value > 0)}
         summary={membershipActivity.map(item => `${item.label}: ${item.value}`).join(', ')}>
         {membershipActivity.some(item => item.value > 0) ? <ResponsiveContainer width="100%" height="100%"><LineChart data={membershipActivity}
-          accessibilityLayer margin={{ top: 12, right: 12, left: -22, bottom: 0 }}><CartesianGrid stroke="#e3ecee" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#71858f' }} axisLine={false} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#71858f' }} axisLine={false} tickLine={false} />
-          <Tooltip /><Line type="monotone" dataKey="value" name="Activated memberships" stroke="#087f8c" strokeWidth={3}
-            dot={{ r: 3, fill: '#087f8c' }} activeDot={{ r: 5 }} isAnimationActive={false} /></LineChart></ResponsiveContainer> :
+          accessibilityLayer margin={{ top: 12, right: 12, left: -22, bottom: 0 }}><CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+          <XAxis dataKey="label" tick={chartTick} axisLine={false} tickLine={false} />
+          <YAxis allowDecimals={false} tick={chartTick} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
+          <Line type="monotone" dataKey="value" name="Activated memberships" stroke="var(--chart-1)" strokeWidth={3}
+            dot={{ r: 3, fill: 'var(--chart-1)' }} activeDot={{ r: 5 }} isAnimationActive={false} /></LineChart></ResponsiveContainer> :
           <ChartEmpty>No memberships were activated in this period.</ChartEmpty>}</ChartCard>}
       {distribution.length > 0 && <ChartCard title="Membership distribution" description="Current active members"
         empty={!distribution.some(item => item.value > 0)} summary={distribution.map(item => `${item.name}: ${item.value}`).join(', ')}>
         {distribution.some(item => item.value > 0) ? <div className="admin-donut-layout"><ResponsiveContainer width="100%" height="100%">
           <PieChart accessibilityLayer><Pie data={distribution} dataKey="value" nameKey="name" innerRadius="58%" outerRadius="82%"
             paddingAngle={2} isAnimationActive={false}>{distribution.map((item, index) =>
-              <Cell key={item.code} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer>
+              <Cell key={item.code} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip
+                contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} /></PieChart></ResponsiveContainer>
           <ul>{distribution.map((item, index) => <li key={item.code}><i style={{ background: chartColors[index % chartColors.length] }} />
             <span>{item.name}</span><strong>{item.value}</strong></li>)}</ul></div> :
           <ChartEmpty>No active membership records are available.</ChartEmpty>}</ChartCard>}
@@ -152,10 +159,12 @@ export function AdminCommandDashboard() {
       {pipeline.length > 0 && <ChartCard title="Application pipeline" description="Current non-terminal workload"
         empty={!pipeline.some(item => item.value > 0)} summary={pipeline.map(item => `${item.label}: ${item.value}`).join(', ')}>{pipeline.some(item => item.value > 0) ?
           <ResponsiveContainer width="100%" height="100%"><BarChart data={pipeline} layout="vertical" accessibilityLayer
-            margin={{ top: 5, right: 12, left: 18, bottom: 0 }}><CartesianGrid stroke="#e3ecee" horizontal={false} />
-            <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-            <YAxis type="category" dataKey="label" width={112} axisLine={false} tickLine={false} tick={{ fontSize: 9.5 }} />
-            <Tooltip /><Bar dataKey="value" name="Applications" fill="#168e98" radius={[0, 6, 6, 0]}
+            margin={{ top: 5, right: 12, left: 18, bottom: 0 }}><CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={chartTick} />
+            <YAxis type="category" dataKey="label" width={112} axisLine={false} tickLine={false}
+              tick={{ ...chartTick, fontSize: 9.5 }} />
+            <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
+            <Bar dataKey="value" name="Applications" fill="var(--chart-2)" radius={[0, 6, 6, 0]}
               isAnimationActive={false} /></BarChart></ResponsiveContainer> :
           <ChartEmpty>No applications are in the active pipeline.</ChartEmpty>}</ChartCard>}
       {applicationActivity.length > 0 && <ChartCard title="Application activity" description="Applications submitted by month"
@@ -163,18 +172,20 @@ export function AdminCommandDashboard() {
         summary={applicationActivity.map(item => `${item.label}: ${item.value}`).join(', ')}>
         {applicationActivity.some(item => item.value > 0) ? <ResponsiveContainer width="100%" height="100%"><LineChart
           data={applicationActivity} accessibilityLayer margin={{ top: 12, right: 12, left: -22, bottom: 0 }}>
-          <CartesianGrid stroke="#e3ecee" vertical={false} /><XAxis dataKey="label" axisLine={false} tickLine={false}
-            tick={{ fontSize: 10 }} /><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-          <Tooltip /><Line type="monotone" dataKey="value" name="Submitted applications" stroke="#315f84" strokeWidth={3}
+          <CartesianGrid stroke="var(--chart-grid)" vertical={false} /><XAxis dataKey="label" axisLine={false} tickLine={false}
+            tick={chartTick} /><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={chartTick} />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
+          <Line type="monotone" dataKey="value" name="Submitted applications" stroke="var(--chart-3)" strokeWidth={3}
             isAnimationActive={false} /></LineChart></ResponsiveContainer> :
           <ChartEmpty>No applications were submitted in this period.</ChartEmpty>}</ChartCard>}
       {paymentStatus.length > 0 && <ChartCard title="Payment verification status" description="Current verification workload"
         empty={!paymentStatus.some(item => item.value > 0)} summary={paymentStatus.map(item => `${item.label}: ${item.value}`).join(', ')}>{paymentStatus.some(item => item.value > 0) ?
           <ResponsiveContainer width="100%" height="100%"><BarChart data={paymentStatus} accessibilityLayer
-            margin={{ top: 12, right: 12, left: -22, bottom: 0 }}><CartesianGrid stroke="#e3ecee" vertical={false} />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9 }} />
-            <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-            <Tooltip /><Bar dataKey="value" name="Payments" fill="#087f8c" radius={[6, 6, 0, 0]}
+            margin={{ top: 12, right: 12, left: -22, bottom: 0 }}><CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ ...chartTick, fontSize: 9 }} />
+            <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={chartTick} />
+            <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
+            <Bar dataKey="value" name="Payments" fill="var(--chart-1)" radius={[6, 6, 0, 0]}
               isAnimationActive={false} /></BarChart></ResponsiveContainer> :
           <ChartEmpty>No payment verification records are available.</ChartEmpty>}</ChartCard>}
     </div>}

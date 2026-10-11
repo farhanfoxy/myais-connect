@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { ThemeProvider, themeInitializationScript } from '@/components/theme-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body><AuthProvider>{children}</AuthProvider></body>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitializationScript }} /></head>
+      <body><ThemeProvider><AuthProvider>{children}</AuthProvider></ThemeProvider></body>
     </html>
   );
 }

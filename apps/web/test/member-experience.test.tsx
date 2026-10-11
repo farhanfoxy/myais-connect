@@ -76,7 +76,7 @@ const payable: CurrentPayment = {
     paidAt: null, status: 'NOT_SUBMITTED', submittedAt: null, treasurerRemarks: null, rejectionReason: null },
 };
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete document.documentElement.dataset.theme; });
 beforeEach(() => {
   fixture.state.user.role = 'APPLICANT';
   fixture.refresh.mockClear();
@@ -97,6 +97,13 @@ beforeEach(() => {
 });
 
 describe('real member dashboard', () => {
+  it('renders the member dashboard inside the active dark theme', async () => {
+    document.documentElement.dataset.theme = 'dark';
+    render(<DashboardPage />);
+    expect(await screen.findByText('Welcome back, Aisyah Rahman.')).toBeTruthy();
+    expect(document.querySelector('.dashboard-page')).toBeTruthy();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
   it('showcases real events and links to the full Events workspace', async () => {
     fixture.listEvents.mockResolvedValue([{ id: 'event-1', title: 'MyAIS Digital Forum', category: 'CONFERENCES',
       summary: 'Professional community programme', description: 'Details', coverImage: null, speakerName: null,

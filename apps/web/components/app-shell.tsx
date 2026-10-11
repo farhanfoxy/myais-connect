@@ -10,6 +10,7 @@ import {
 import { BrandMark } from '@/components/brand-mark';
 import { useAuth } from '@/components/auth/auth-provider';
 import { UserAvatar } from '@/components/ui/user-avatar';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 import { canManageEvents, canReviewApplications, canReviewPayments, humanizeEnum, roleFamily } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
@@ -101,6 +102,7 @@ function UserMenu({ name, email, role, photoUrl, identityHref, signOut }: Readon
       aria-label="Account menu"><div className="user-popover-identity"><UserAvatar photoUrl={photoUrl} name={name}
         className="user-avatar-large" /><div><strong>{name}</strong><span>{email}</span></div></div>
       <div className="user-popover-role"><ShieldCheck size={16} /><span>Canonical role</span><strong>{role}</strong></div>
+      <ThemeSwitcher />
       <button className="menu-option signout-option" role="menuitem" onClick={() => void signOut()}>
         <span className="menu-option-icon"><LogOut size={17} /></span><span>Sign out</span></button></div>}
   </div>;
@@ -215,7 +217,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           key={label} href={href} onClick={closeDrawer}><Icon size={19} /><span>{label}</span></Link> :
           <button className="drawer-link" key={label} onClick={() => { announce(label); closeDrawer(); }}>
             <Icon size={19} /><span>{label}</span><small>Soon</small></button>)}
-      </nav><button className="drawer-signout" onClick={() => void signOut()}><LogOut size={18} />Sign out</button>
+      </nav><ThemeSwitcher mobile /><button className="drawer-signout" onClick={() => void signOut()}><LogOut size={18} />Sign out</button>
     </aside></div>}
   </div>;
 }
