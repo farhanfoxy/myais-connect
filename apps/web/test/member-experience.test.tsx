@@ -188,7 +188,7 @@ describe('real member dashboard', () => {
       expiryDate: null, votingEligible: false, activatedAt: '2026-01-01T00:00:00.000Z' });
     render(<DashboardPage />);
     expect((await screen.findAllByText('MYAIS-2026-000123')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'View full card' }).getAttribute('href')).toBe('/my-card');
+    expect(screen.getByRole('link', { name: 'Download card' }).getAttribute('href')).toBe('/my-card');
     expect(screen.getByLabelText('5 of 5 stages complete')).toBeTruthy();
   });
 

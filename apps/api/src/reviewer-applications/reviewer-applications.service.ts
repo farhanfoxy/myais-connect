@@ -358,10 +358,24 @@ export class ReviewerApplicationsService {
             ? 'Your membership is now active.'
             : 'Please submit your payment to activate your membership.'}`,
           type: 'APPLICATION',
+          eventType: 'APPLICATION_APPROVED',
           relatedEntityType: 'MembershipApplication',
           actionUrl: honorary ? '/my-card' : '/my-application/payment',
         },
       });
+      if (honorary) {
+        await transaction.notification.create({
+          data: {
+            userId: application.userId,
+            title: 'Membership Activated!',
+            message: `Your ${approvedType.name} membership (${membershipNumber}) is now active. View your digital membership card.`,
+            type: 'MEMBERSHIP',
+            eventType: 'MEMBERSHIP_ACTIVATED',
+            relatedEntityType: 'Membership',
+            actionUrl: '/my-card',
+          },
+        });
+      }
       await transaction.applicationReview.create({
         data: {
           applicationId,
@@ -468,12 +482,21 @@ export class ReviewerApplicationsService {
           description: `${action.decision.replace(/_/g, ' ')} on ${application.applicationNumber}. Remarks: ${action.remarks}`,
         },
       });
-      if (action.decision === 'REJECT') {
+      const notification = ({
+        START_REVIEW: { eventType: 'APPLICATION_REVIEW_STARTED', title: 'Application Review Started',
+          message: 'Your membership application is now under review.' },
+        REQUEST_INFORMATION: { eventType: 'ADDITIONAL_INFORMATION_REQUESTED', title: 'Additional Information Required',
+          message: `The review committee requested additional information: ${action.remarks}` },
+        RECOMMEND_APPROVAL: { eventType: 'APPLICATION_RECOMMENDED', title: 'Application Recommended',
+          message: 'Your membership application has been recommended for final approval.' },
+        REJECT: { eventType: 'APPLICATION_REJECTED', title: 'Application Rejected',
+          message: `Your membership application has been rejected. Reason: ${action.remarks}` },
+      } as const)[action.decision];
+      if (notification) {
         await transaction.notification.create({
           data: {
             userId: application.userId,
-            title: 'Application Rejected',
-            message: `Your membership application has been rejected. Reason: ${action.remarks}`,
+            ...notification,
             type: 'APPLICATION',
             relatedEntityType: 'MembershipApplication',
             actionUrl: '/my-application/tracker',

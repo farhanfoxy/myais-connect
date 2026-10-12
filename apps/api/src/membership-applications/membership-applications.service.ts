@@ -343,6 +343,7 @@ export class MembershipApplicationsService {
           title: 'Application Submitted',
           message: `Your application ${applicationNumber} has been submitted and will be reviewed by the committee.`,
           type: 'APPLICATION',
+          eventType: 'APPLICATION_SUBMITTED',
           relatedEntityType: 'MembershipApplication',
           actionUrl: '/my-application/tracker',
         },

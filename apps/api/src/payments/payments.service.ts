@@ -203,6 +203,9 @@ export class PaymentsService {
             description: `Payment submitted for application ${payment.application.applicationNumber}`,
           },
         });
+        await transaction.notification.create({ data: { userId, title: 'Payment Submitted',
+          message: 'Your payment evidence was submitted and is awaiting verification.', type: 'PAYMENT',
+          eventType: 'PAYMENT_SUBMITTED', relatedEntityType: 'Payment', actionUrl: '/my-application/payment' } });
         return {
           oldObjectKey: payment.receiptObjectKey,
           payment: this.safeSubmittedPayment(payment.id, payment.paymentReference, submittedAt),

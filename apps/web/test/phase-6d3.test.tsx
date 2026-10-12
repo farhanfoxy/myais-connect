@@ -112,11 +112,11 @@ describe('digital membership card', () => {
     expect(document.body.textContent).not.toContain('PROFILE_PHOTO');
   });
 
-  it('prints with browser facilities and leaves download honestly unavailable', async () => {
+  it('prints with browser facilities and offers the trusted PDF download', async () => {
     const user = userEvent.setup(); render(<DigitalMembershipCard />);
     await user.click(await screen.findByRole('button', { name: /Print card/ }));
     expect(fixture.print).toHaveBeenCalledOnce();
-    expect((screen.getByRole('button', { name: /Download.*coming later/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Download card' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('shares only safe display details when Web Share is supported', async () => {

@@ -293,6 +293,7 @@ export class ReviewerPaymentsService {
             title: 'Payment Rejected',
             message: `Your payment has been rejected. Reason: ${remarks}. Please submit a new receipt.`,
             type: 'PAYMENT',
+            eventType: 'PAYMENT_REJECTED',
             actionUrl: '/my-application/payment',
           },
         });
@@ -342,10 +343,22 @@ export class ReviewerPaymentsService {
       await transaction.notification.create({
         data: {
           userId: payment.userId,
+          title: 'Payment Verified',
+          message: 'Your payment has been verified successfully.',
+          type: 'PAYMENT',
+          eventType: 'PAYMENT_VERIFIED',
+          relatedEntityType: 'Payment',
+          actionUrl: '/my-application/payment',
+        },
+      });
+      await transaction.notification.create({
+        data: {
+          userId: payment.userId,
           title: 'Membership Activated!',
           message: `Your ${type.name} membership (${membershipNumber}) is now active. ` +
             'View your digital membership card.',
           type: 'MEMBERSHIP',
+          eventType: 'MEMBERSHIP_ACTIVATED',
           relatedEntityType: 'Membership',
           actionUrl: '/my-card',
         },

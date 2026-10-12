@@ -276,7 +276,7 @@ test('START_REVIEW writes transition, reviewer cache, review, and exact audit', 
     description: 'START REVIEW on MYAIS-APP-2026-000001. Remarks: ' }]);
 });
 
-test('REQUEST_INFORMATION requires remarks, supports due date, and creates no notification', async () => {
+test('REQUEST_INFORMATION requires remarks, supports due date, and notifies the applicant', async () => {
   const database = reviewDatabase({ applications: [application({ status: 'UNDER_REVIEW' })] });
   await assert.rejects(database.service.requestInformation(principal(), applicationId, { remarks: '   ' }),
     error => error.getStatus() === 400);
@@ -291,10 +291,10 @@ test('REQUEST_INFORMATION requires remarks, supports due date, and creates no no
   });
   assert.equal(database.state.reviews[0].decision, 'REQUEST_INFORMATION');
   assert.equal(database.state.audits[0].action, 'APPLICATION_REQUEST_INFORMATION');
-  assert.equal(database.state.notifications.length, 0);
+  assert.equal(database.state.notifications[0].eventType, 'ADDITIONAL_INFORMATION_REQUESTED');
 });
 
-test('RECOMMEND_APPROVAL changes only review state and creates no payment, membership, or notification', async () => {
+test('RECOMMEND_APPROVAL changes only review state and notifies the applicant', async () => {
   const database = reviewDatabase({ applications: [application({ status: 'UNDER_REVIEW' })] });
   const before = { eligibilityScore: database.state.applications[0].eligibilityScore,
     requestedMembershipTypeCode: database.state.applications[0].requestedMembershipTypeCode,
@@ -309,7 +309,7 @@ test('RECOMMEND_APPROVAL changes only review state and creates no payment, membe
   assert.equal(database.state.audits[0].action, 'APPLICATION_RECOMMEND_APPROVAL');
   assert.equal(database.state.payments.length, 0);
   assert.equal(database.state.memberships.length, 0);
-  assert.equal(database.state.notifications.length, 0);
+  assert.equal(database.state.notifications[0].eventType, 'APPLICATION_RECOMMENDED');
 });
 
 test('REJECT works from both source statuses with exact reason, review, audit, and notification', async () => {
@@ -325,7 +325,7 @@ test('REJECT works from both source statuses with exact reason, review, audit, a
     assert.equal(database.state.audits[0].action, 'APPLICATION_REJECT');
     assert.deepEqual(database.state.notifications, [{ userId: applicantId, title: 'Application Rejected',
       message: 'Your membership application has been rejected. Reason: Insufficient evidence',
-      type: 'APPLICATION', relatedEntityType: 'MembershipApplication', actionUrl: '/my-application/tracker' }]);
+      type: 'APPLICATION', eventType: 'APPLICATION_REJECTED', relatedEntityType: 'MembershipApplication', actionUrl: '/my-application/tracker' }]);
   }
   await assert.rejects(reviewDatabase({ applications: [application({ status: 'UNDER_REVIEW' })] }).service
     .reject(principal(), applicationId, { remarks: '' }), error => error.getStatus() === 400);

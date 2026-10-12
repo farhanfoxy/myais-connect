@@ -38,6 +38,7 @@ function project(row, select) {
 function database(seed = [baseEvent]) {
   const events = seed.map(item => ({ ...item }));
   const audits = [];
+  const notifications = [];
   const eventApi = {
     async findMany(args = {}) {
       let rows = events.filter(item => !args.where?.status || item.status === args.where.status);
@@ -68,6 +69,8 @@ function database(seed = [baseEvent]) {
   };
   const client = {
     event: eventApi,
+    user: { async findMany() { return [{ id: '99999999-9999-4999-8999-999999999999' }]; } },
+    notification: { async createMany({ data }) { notifications.push(...data); return { count: data.length }; } },
     auditLog: { async create({ data }) { audits.push(data); return data; } },
     async $queryRaw() { return [{ lock: 'ok' }]; },
     async $transaction(input) {
@@ -75,7 +78,7 @@ function database(seed = [baseEvent]) {
       return Promise.all(input);
     },
   };
-  return { events, audits, service: new EventsService({ client }) };
+  return { events, audits, notifications, service: new EventsService({ client }) };
 }
 
 function context(principal, handler = AdminEventsController.prototype.create) {
@@ -134,6 +137,7 @@ test('update validation and status transitions are server-enforced', async () =>
   assert.equal(updated.title, 'Updated Event');
   const published = await db.service.publish(actor, eventId);
   assert.equal(published.status, 'PUBLISHED');
+  assert.equal(db.notifications[0].eventType, 'EVENT_PUBLISHED');
   await assert.rejects(db.service.publish(actor, eventId), error => error.getStatus() === 409);
   const cancelled = await db.service.cancel(actor, eventId, { reason: 'Venue unavailable' });
   assert.equal(cancelled.status, 'CANCELLED');

@@ -12,6 +12,7 @@ import {
 } from '@/components/dashboard/dashboard-ui';
 import { MembershipCardVisual } from '@/components/membership/digital-membership-card';
 import { EventCard } from '@/components/events/event-card';
+import { NewsList } from '@/components/news/news-list';
 import type { JourneyStep } from '@/components/dashboard/dashboard-ui';
 import type { CurrentMembership, CurrentPayment, EventRecord, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
@@ -117,7 +118,7 @@ export default function DashboardPage() {
     {data && (activeMembership ? <section className="active-member-priority" aria-label="Active membership overview">
       <MembershipJourney steps={journey} nextAction={nextAction} nextHref={nextHref} compact />
       <div className="dashboard-card-highlight"><header><div><p>Digital membership card</p>
-        <h2>Your member identity</h2></div><Link className="dashboard-card-link" href="/my-card">View full card</Link></header>
+        <h2>Your member identity</h2></div><Link className="dashboard-card-link" href="/my-card">Download card</Link></header>
         <MembershipCardVisual membership={activeMembership} profileName={data.profile.profile.fullName}
           gender={data.profile.profile.gender} canonicalName={user.fullName} photoUrl={data.profile.photoUrl ?? user.photoUrl} /></div>
     </section> : <MembershipJourney steps={journey} nextAction={nextAction} nextHref={nextHref} />)}
@@ -135,6 +136,11 @@ export default function DashboardPage() {
         <div className="event-empty-state"><span className="event-empty-icon"><CalendarDays size={23} /></span><div>
           <h3>No upcoming events yet</h3><p>Published MyAIS events will appear here when they are scheduled.</p></div>
           <Link className="button button-secondary" href="/events">View more events</Link></div>}
+    </section>
+
+    <section className="dashboard-section" aria-labelledby="latest-news-heading">
+      <SectionHeading id="latest-news-heading" title="Latest news" description="Recent official MyAIS announcements." />
+      <NewsList limit={3} /><Link className="dashboard-events-more" href="/news">View all news</Link>
     </section>
 
     <section className="dashboard-section" aria-labelledby="account-summary-heading">

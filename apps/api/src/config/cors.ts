@@ -12,6 +12,7 @@ export function createCorsOptions(allowedOrigins: readonly string[]) {
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Accept', 'Authorization', 'Content-Type'],
+    exposedHeaders: ['Content-Disposition', 'Content-Length', 'Content-Type'],
     credentials: false,
   };
 }

@@ -168,6 +168,21 @@ enum NotificationType {
   SYSTEM
 }
 
+enum NotificationEventType {
+  APPLICATION_SUBMITTED
+  APPLICATION_REVIEW_STARTED
+  ADDITIONAL_INFORMATION_REQUESTED
+  APPLICATION_RECOMMENDED
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
+  PAYMENT_SUBMITTED
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  MEMBERSHIP_ACTIVATED
+  ANNOUNCEMENT_PUBLISHED
+  EVENT_PUBLISHED
+}
+
 enum PaymentPaymentType {
   ENTRANCE_AND_ANNUAL
   ENTRANCE_AND_LIFETIME
@@ -735,15 +750,16 @@ model Notification {
   legacyCreatedAt DateTime? @db.Timestamptz(3)
   legacyUpdatedAt DateTime? @db.Timestamptz(3)
 
-  userId                String            @db.Uuid
+  userId                String                 @db.Uuid
   title                 String
   message               String
   type                  NotificationType?
+  eventType             NotificationEventType?
   relatedEntityType     String?
   legacyRelatedEntityId String?
   actionUrl             String?
-  isRead                Boolean?          @default(false)
-  readAt                DateTime?         @db.Timestamptz(3)
+  isRead                Boolean?               @default(false)
+  readAt                DateTime?              @db.Timestamptz(3)
   legacyCreatedById     String?
   legacyCreatedBy       String?
   legacyIsSample        Boolean?
@@ -751,6 +767,7 @@ model Notification {
   user User @relation("Notification_userId", fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId])
+  @@index([userId, isRead, createdAt])
 }
 
 model AuditLog {

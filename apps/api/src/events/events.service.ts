@@ -240,6 +240,15 @@ export class EventsService {
           { status: nextStatus, cancelledAt: now, cancellationReason: reason },
         select: adminEventSelect,
       });
+      if (nextStatus === 'PUBLISHED') {
+        const memberRoles = ['ORDINARY_MEMBER', 'LIFETIME_MEMBER', 'ASSOCIATE_MEMBER', 'HONORARY_MEMBER'] as const;
+        const audience = updated.targetAudience ?? 'MEMBERS_AND_NON_MEMBERS';
+        const users = await transaction.user.findMany({ where: { accountStatus: 'ACTIVE', ...(audience === 'MEMBERS' ?
+          { role: { in: [...memberRoles] } } : audience === 'NON_MEMBERS' ? { role: 'APPLICANT' } : {}) }, select: { id: true } });
+        if (users.length) await transaction.notification.createMany({ data: users.map(user => ({ userId: user.id, type: 'SYSTEM',
+          eventType: 'EVENT_PUBLISHED', title: 'New event published', message: updated.title,
+          relatedEntityType: 'Event', actionUrl: `/events/${updated.id}` })) });
+      }
       await this.audit(transaction, actor, `EVENT_${nextStatus}`, `Changed event status to ${nextStatus}`);
       return this.safeAdmin(updated);
     });

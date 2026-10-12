@@ -4,14 +4,16 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Bell, CalendarDays, ChevronDown, CreditCard, FileClock, FileText, House, IdCard,
+  BarChart3, Bell, CalendarDays, ChevronDown, CreditCard, FileClock, FileText, House, IdCard,
   LayoutDashboard, LogOut, Megaphone, Menu, ShieldCheck, UserRound, X,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { useAuth } from '@/components/auth/auth-provider';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { ThemeSwitcher } from '@/components/theme-switcher';
-import { canManageEvents, canReviewApplications, canReviewPayments, humanizeEnum, roleFamily } from '@/lib/roles';
+import { NotificationBell } from '@/components/notifications/notification-center';
+import { canAccessReports, canManageAnnouncements, canManageEvents, canReviewApplications, canReviewPayments,
+  humanizeEnum, roleFamily } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 interface MenuItem { label: string; icon: typeof UserRound; href?: string }
@@ -24,12 +26,16 @@ const membershipItems: MenuItem[] = [
   { label: 'Membership card', icon: IdCard, href: '/my-card' },
 ];
 const memberDrawerItems: MenuItem[] = [...membershipItems,
-  { label: 'Events', icon: CalendarDays, href: '/events' }, { label: 'Announcements', icon: Megaphone }];
+  { label: 'Events', icon: CalendarDays, href: '/events' }, { label: 'News', icon: Megaphone, href: '/news' },
+  { label: 'Notifications', icon: Bell, href: '/notifications' }];
 function committeeItems(role: string | null): MenuItem[] {
   const items: MenuItem[] = [];
   if (canReviewApplications(role)) items.push({ label: 'Applications', icon: FileText, href: '/admin/applications' });
   if (canReviewPayments(role)) items.push({ label: 'Payments', icon: CreditCard, href: '/admin/payments' });
   if (canManageEvents(role)) items.push({ label: 'Events', icon: CalendarDays, href: '/admin/events' });
+  if (canManageAnnouncements(role)) items.push({ label: 'Announcements', icon: Megaphone, href: '/admin/announcements' });
+  if (canAccessReports(role)) items.push({ label: 'Reports', icon: BarChart3, href: '/admin/reports' });
+  items.push({ label: 'Notifications', icon: Bell, href: '/notifications' });
   return items;
 }
 
@@ -143,6 +149,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const reviewEnabled = canReviewApplications(user.role);
   const paymentEnabled = canReviewPayments(user.role);
   const eventsEnabled = canManageEvents(user.role);
+  const announcementsEnabled = canManageAnnouncements(user.role);
+  const reportsEnabled = canAccessReports(user.role);
   const drawerItems = isCommittee ? committeeItems(user.role) : memberDrawerItems;
   const identityHref = isCommittee ? '/admin' : '/profile';
 
@@ -164,13 +172,16 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             href="/admin/payments">Payments</Link>}
           {eventsEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/events') && 'is-active')}
             href="/admin/events">Events</Link>}
+          {announcementsEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/announcements') && 'is-active')}
+            href="/admin/announcements">News</Link>}
+          {reportsEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/reports') && 'is-active')}
+            href="/admin/reports">Reports</Link>}
         </> :
           <MembershipMenu announce={announce} active={pathname === '/profile' || pathname === '/my-card' || pathname.startsWith('/my-application')} />}
         {!isCommittee && <><Link className={cn('top-nav-link', pathname.startsWith('/events') && 'is-active')} href="/events">Events</Link>
-          <button className="top-nav-link" onClick={() => announce('Announcements')}>News</button></>}
+          <Link className={cn('top-nav-link', pathname.startsWith('/news') && 'is-active')} href="/news">News</Link></>}
       </nav>
-      <div className="header-tools"><button className="header-icon-button" aria-label="Notifications"
-        title="Notifications" onClick={() => announce('Notifications')}><Bell size={19} /></button>
+      <div className="header-tools"><NotificationBell />
         <UserMenu name={displayName} email={user.email} role={role} photoUrl={user.photoUrl} identityHref={identityHref}
           signOut={signOut} />
         <Link className="mobile-account-button" href={identityHref}

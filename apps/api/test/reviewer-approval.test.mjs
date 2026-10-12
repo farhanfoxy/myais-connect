@@ -277,6 +277,7 @@ test('non-honorary approval persists legacy fields and exact atomic side effects
     message: 'Your membership application has been approved as Ordinary Member. ' +
       'Please submit your payment to activate your membership.',
     type: 'APPLICATION',
+    eventType: 'APPLICATION_APPROVED',
     relatedEntityType: 'MembershipApplication',
     actionUrl: '/my-application/payment',
   }]);
@@ -351,9 +352,12 @@ test('honorary approval creates the source-backed verified payment and active me
     title: 'Application Approved!',
     message: 'Your membership application has been approved as Honorary Member. Your membership is now active.',
     type: 'APPLICATION',
+    eventType: 'APPLICATION_APPROVED',
     relatedEntityType: 'MembershipApplication',
     actionUrl: '/my-card',
-  }]);
+  }, { userId: applicantId, title: 'Membership Activated!',
+    message: 'Your Honorary Member membership (MYAIS-2026-000010) is now active. View your digital membership card.',
+    type: 'MEMBERSHIP', eventType: 'MEMBERSHIP_ACTIVATED', relatedEntityType: 'Membership', actionUrl: '/my-card' }]);
 });
 
 test('business year and date use Asia/Kuala_Lumpur at the UTC New Year boundary', () => {
@@ -414,7 +418,7 @@ test('concurrent honorary duplicate approval creates one payment and one members
   assert.equal(database.state.memberships.length, 1);
   assert.equal(database.state.reviews.length, 1);
   assert.equal(database.state.audits.length, 1);
-  assert.equal(database.state.notifications.length, 1);
+  assert.equal(database.state.notifications.length, 2);
 });
 
 test('concurrent distinct honorary approvals allocate unique payment and membership numbers', async () => {

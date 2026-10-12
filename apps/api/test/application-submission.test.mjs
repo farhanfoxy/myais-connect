@@ -134,7 +134,7 @@ test('complete DRAFT submits atomically with legacy audit/notification wording a
     description: `Application MYAIS-APP-${year}-000008 submitted by Applicant Name` }]);
   assert.deepEqual(database.state.notifications, [{ userId: ownId, title: 'Application Submitted',
     message: `Your application MYAIS-APP-${year}-000008 has been submitted and will be reviewed by the committee.`,
-    type: 'APPLICATION', relatedEntityType: 'MembershipApplication', actionUrl: '/my-application/tracker' }]);
+    type: 'APPLICATION', eventType: 'APPLICATION_SUBMITTED', relatedEntityType: 'MembershipApplication', actionUrl: '/my-application/tracker' }]);
 });
 
 test('submission accepts only declaration true and never trusts canonical application fields', async () => {

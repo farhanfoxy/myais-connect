@@ -68,6 +68,7 @@ export function DigitalMembershipCard() {
   const [profile, setProfile] = useState<MemberProfileResponse | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [shareMessage, setShareMessage] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const load = useCallback(() => {
     setLoadError(false); setMembership(undefined);
     Promise.all([api.getCurrentMembership(), api.getProfile().catch(() => null)]).then(([nextMembership, nextProfile]) => {
@@ -93,6 +94,17 @@ export function DigitalMembershipCard() {
         text: `MyAIS Membership\n${displayName}\n${membership.membershipNumber || 'Membership number unavailable'}` });
       setShareMessage('Membership details shared.');
     } catch { setShareMessage('Sharing was cancelled or could not be completed.'); }
+  }
+  async function download() {
+    setDownloading(true); setShareMessage('');
+    try {
+      const file = await api.downloadMembershipCard();
+      const url = URL.createObjectURL(file.blob);
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = file.filename; anchor.click(); URL.revokeObjectURL(url);
+      setShareMessage('Membership card downloaded.');
+    } catch { setShareMessage('We could not download your card. Please try again.'); }
+    finally { setDownloading(false); }
   }
 
   return <PageContainer className="membership-card-page">
@@ -124,7 +136,8 @@ export function DigitalMembershipCard() {
           <Printer /> {printSupported ? 'Print card' : 'Printing unavailable'}</Button>
           {shareSupported && <Button variant="secondary" onClick={() => void share()}><Share2 /> Share details</Button>}
           {!shareSupported && <Button variant="secondary" disabled><Share2 /> Sharing unavailable</Button>}
-          <Button variant="ghost" disabled><Download /> Download — coming later</Button></div>
+          <Button variant="ghost" onClick={() => void download()} disabled={downloading}><Download />
+            {downloading ? 'Preparing PDF…' : 'Download card'}</Button></div>
         {shareMessage && <p className="membership-share-message" role="status">{shareMessage}</p>}
       </aside>
     </div>}

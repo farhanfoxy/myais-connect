@@ -270,3 +270,43 @@ export const cancelEventSchema = z.object({
 }).strict();
 
 export type EventInput = z.infer<typeof eventInputSchema>;
+
+export const announcementCategorySchema = z.enum(['GENERAL', 'EVENT', 'MEMBERSHIP', 'POLICY', 'TRAINING']);
+export const announcementAudienceSchema = z.enum(['ALL', 'MEMBERS', 'APPLICANTS', 'COMMITTEE']);
+export const announcementStatusSchema = z.enum(['DRAFT', 'SCHEDULED', 'PUBLISHED', 'ARCHIVED']);
+
+export const announcementInputSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  summary: z.string().trim().max(500).optional().nullable(),
+  content: z.string().trim().min(1, 'Content is required').max(50_000),
+  category: announcementCategorySchema.default('GENERAL'),
+  targetAudience: announcementAudienceSchema.default('ALL'),
+  expiryAt: z.string().datetime({ offset: true }).optional().nullable(),
+}).strict();
+
+export const adminAnnouncementQuerySchema = z.object({
+  status: z.union([z.literal('ALL'), announcementStatusSchema]).default('ALL'),
+  search: z.string().trim().max(200).default(''),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(15),
+}).strict();
+
+export const notificationQuerySchema = z.object({
+  unreadOnly: z.enum(['true', 'false']).transform(value => value === 'true').default(false),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+}).strict();
+
+export const reportTypeSchema = z.enum(['member-directory', 'membership', 'application', 'payment', 'event']);
+export const reportFormatSchema = z.enum(['csv', 'xlsx']);
+export const reportQuerySchema = z.object({
+  format: reportFormatSchema.default('csv'),
+  status: z.string().trim().max(80).optional(),
+  membershipType: z.string().trim().max(80).optional(),
+  from: calendarDate.optional(),
+  to: calendarDate.optional(),
+}).strict().refine(value => !value.from || !value.to || value.from <= value.to,
+  { path: ['to'], message: 'End date must be on or after start date' });
+
+export type AnnouncementInput = z.infer<typeof announcementInputSchema>;
+export type ReportType = z.infer<typeof reportTypeSchema>;

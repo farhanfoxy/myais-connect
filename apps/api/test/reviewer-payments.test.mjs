@@ -242,17 +242,20 @@ test('normal verification creates exact active membership, role, audit, and noti
   assert.deepEqual(database.state.audits, [{ actorUserId: verifierId, actorName: 'Treasurer Name',
     action: 'PAYMENT_VERIFY', entityType: 'Payment',
     description: 'Payment MYAIS-PAY-2026-000001 verified. Remarks: Verified manually' }]);
-  assert.deepEqual(database.state.notifications, [{ userId: applicantId, title: 'Membership Activated!',
+  assert.deepEqual(database.state.notifications, [{ userId: applicantId, title: 'Payment Verified',
+    message: 'Your payment has been verified successfully.', type: 'PAYMENT', eventType: 'PAYMENT_VERIFIED',
+    relatedEntityType: 'Payment', actionUrl: '/my-application/payment' },
+  { userId: applicantId, title: 'Membership Activated!',
     message: `Your Ordinary Member membership (${membership.membershipNumber}) is now active. ` +
       'View your digital membership card.',
-    type: 'MEMBERSHIP', relatedEntityType: 'Membership', actionUrl: '/my-card' }]);
+    type: 'MEMBERSHIP', eventType: 'MEMBERSHIP_ACTIVATED', relatedEntityType: 'Membership', actionUrl: '/my-card' }]);
   assert.equal(database.state.reviews.length, 0);
 
   const repeated = await database.service.verify(principal(), paymentId, {});
   assert.equal(repeated.alreadyVerified, true);
   assert.equal(database.state.memberships.length, 1);
   assert.equal(database.state.audits.length, 1);
-  assert.equal(database.state.notifications.length, 1);
+  assert.equal(database.state.notifications.length, 2);
 });
 
 test('verification accepts legacy UNDER_VERIFICATION pair and maps all normal canonical roles', async () => {
@@ -322,7 +325,7 @@ test('rejection preserves exact transition, audit, notification, and no membersh
       description: 'Payment MYAIS-PAY-2026-000001 rejected. Remarks: Receipt unclear' }]);
     assert.deepEqual(database.state.notifications, [{ userId: applicantId, title: 'Payment Rejected',
       message: 'Your payment has been rejected. Reason: Receipt unclear. Please submit a new receipt.',
-      type: 'PAYMENT', actionUrl: '/my-application/payment' }]);
+      type: 'PAYMENT', eventType: 'PAYMENT_REJECTED', actionUrl: '/my-application/payment' }]);
   }
   await assert.rejects(reviewerDatabase().service.reject(principal(), paymentId, { remarks: '   ' }),
     error => error.getStatus() === 400);
@@ -337,7 +340,7 @@ test('concurrent verification and verify/reject races produce one terminal side-
   assert.equal(verified.filter(result => result.alreadyVerified).length, 1);
   assert.equal(verifyDatabase.state.memberships.length, 1);
   assert.equal(verifyDatabase.state.audits.length, 1);
-  assert.equal(verifyDatabase.state.notifications.length, 1);
+  assert.equal(verifyDatabase.state.notifications.length, 2);
 
   const raceDatabase = reviewerDatabase();
   const results = await Promise.allSettled([
@@ -346,7 +349,7 @@ test('concurrent verification and verify/reject races produce one terminal side-
   ]);
   assert.deepEqual(results.map(result => result.status).sort(), ['fulfilled', 'rejected']);
   assert.equal(raceDatabase.state.audits.length, 1);
-  assert.equal(raceDatabase.state.notifications.length, 1);
+  assert.equal(raceDatabase.state.notifications.length, 2);
 });
 
 test('membership, role, audit, and notification failures roll verification back completely', async () => {

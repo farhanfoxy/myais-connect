@@ -139,6 +139,7 @@ function applicantDatabase(options = {}) {
       state.audits.push(data);
       return data;
     } },
+    notification: { async create({ data }) { state.notifications.push(data); return data; } },
     async $queryRaw() { state.locks++; return []; },
     async $transaction(work) {
       const run = queue.then(async () => {
@@ -233,7 +234,7 @@ test('receipt upload enforces PDF/JPEG/PNG, 5MB, provider completion, and opaque
   }), error => error.getStatus() === 400);
 });
 
-test('NOT_SUBMITTED payment finalization submits exact fields, audit, and no notification', async () => {
+test('NOT_SUBMITTED payment finalization submits exact fields, audit, and notification', async () => {
   const database = applicantDatabase();
   const uploadToken = await upload(database);
   const result = await database.service.finalizeReceiptAndSubmit(ownId, {
@@ -257,7 +258,9 @@ test('NOT_SUBMITTED payment finalization submits exact fields, audit, and no not
   assert.deepEqual(database.state.audits, [{ actorUserId: ownId, actorName: 'Applicant Profile',
     action: 'PAYMENT_SUBMITTED', entityType: 'Payment',
     description: 'Payment submitted for application MYAIS-APP-2026-000001' }]);
-  assert.equal(database.state.notifications.length, 0);
+  assert.deepEqual(database.state.notifications, [{ userId: ownId, title: 'Payment Submitted',
+    message: 'Your payment evidence was submitted and is awaiting verification.', type: 'PAYMENT',
+    eventType: 'PAYMENT_SUBMITTED', relatedEntityType: 'Payment', actionUrl: '/my-application/payment' }]);
 });
 
 test('submission strictly rejects invalid applicant and server-owned fields', async () => {

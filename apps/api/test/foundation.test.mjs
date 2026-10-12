@@ -61,6 +61,8 @@ test('web CORS uses exact configured origins and leaves non-browser clients unaf
   const origin = options.origin;
   assert(options.allowedHeaders.includes('Authorization'));
   assert(options.allowedHeaders.includes('Content-Type'));
+  assert(options.exposedHeaders.includes('Content-Disposition'));
+  assert(options.exposedHeaders.includes('Content-Length'));
   assert.equal(options.credentials, false);
   for (const [requestOrigin, expected] of [[webOrigin, true], ['https://unknown.example.test', false],
     [undefined, true]]) {

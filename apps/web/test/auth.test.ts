@@ -336,6 +336,27 @@ describe('typed API client', () => {
     await expect(client.getCurrentApplication()).rejects.toMatchObject({ status, kind });
   });
 
+  it('downloads report blobs with the server filename and normalized failure statuses', async () => {
+    const fetcher = vi.fn(function (this: unknown) {
+      expect(this).toBeUndefined();
+      return Promise.resolve(new Response('report', { status: 200, headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': 'attachment; filename="myais-membership-2026-10-12.csv"',
+      } }));
+    });
+    const successful = new ApiClient('https://api.example.test', async () => 'token', fetcher as typeof fetch);
+    const file = await successful.downloadReport('membership', { format: 'csv', status: 'ACTIVE',
+      from: '2026-09-16', to: '2026-10-12' });
+    expect(file.filename).toBe('myais-membership-2026-10-12.csv');
+    expect(await file.blob.text()).toBe('report');
+
+    for (const [status, kind] of [[400, 'request'], [403, 'forbidden'], [500, 'unavailable']] as const) {
+      const failed = new ApiClient('https://api.example.test', async () => 'token',
+        vi.fn(async () => new Response(null, { status })) as typeof fetch);
+      await expect(failed.downloadReport('membership', { format: 'csv' })).rejects.toMatchObject({ status, kind });
+    }
+  });
+
   it('contains no web runtime reference to the service-role credential', () => {
     const configSource = readFileSync(new URL('../lib/config.ts', import.meta.url), 'utf8');
     const supabaseSource = readFileSync(new URL('../lib/supabase.ts', import.meta.url), 'utf8');

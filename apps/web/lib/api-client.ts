@@ -293,6 +293,20 @@ export interface CurrentMembership {
   activatedAt: string | null;
 }
 
+export interface AnnouncementRecord {
+  id: string; title: string; summary: string | null; content: string; category: string | null;
+  targetAudience: string | null; status: string | null; publishedAt: string | null; expiresAt: string | null;
+  createdByName: string | null; createdAt: string; updatedAt: string;
+}
+
+export interface NotificationRecord {
+  id: string; userId: string; eventType: string; type: string | null; title: string; message: string; actionUrl: string | null;
+  isRead: boolean; readAt: string | null; createdAt: string;
+}
+
+export interface NotificationPage { items: NotificationRecord[]; page: number; pageSize: number; total: number; totalPages: number }
+export interface AdminAnnouncementPage { items: AnnouncementRecord[]; page: number; pageSize: number; total: number; totalPages: number }
+
 export type EventCategory = 'SEMINARS_AND_WEBINARS' | 'WORKSHOPS' | 'MEETINGS' | 'MYDCIS' | 'CONFERENCES' | 'OTHER';
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'REGISTRATION_CLOSED' | 'CANCELLED' | 'COMPLETED' | 'ARCHIVED';
 
@@ -616,6 +630,41 @@ export class ApiClient {
 
   getCurrentMembership(): Promise<CurrentMembership | null> { return this.request('/memberships/current'); }
 
+  listAnnouncements(): Promise<AnnouncementRecord[]> { return this.request('/announcements'); }
+  getAnnouncement(id: string): Promise<AnnouncementRecord> { return this.request(`/announcements/${encodeURIComponent(id)}`); }
+  listNotifications(input: { page?: number; pageSize?: number; unreadOnly?: boolean } = {}): Promise<NotificationPage> {
+    const query = new URLSearchParams({ page: String(input.page ?? 1), pageSize: String(input.pageSize ?? 20),
+      unreadOnly: String(input.unreadOnly ?? false) }); return this.request(`/notifications?${query.toString()}`);
+  }
+  getUnreadNotificationCount(): Promise<{ count: number }> { return this.request('/notifications/unread-count'); }
+  markNotificationRead(id: string): Promise<NotificationRecord> {
+    return this.request(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', body: '{}' });
+  }
+  markAllNotificationsRead(): Promise<{ updated: number; readAt: string }> {
+    return this.request('/notifications/read-all', { method: 'POST', body: '{}' });
+  }
+  listAdminAnnouncements(input: { page?: number; pageSize?: number; search?: string; status?: string } = {}): Promise<AdminAnnouncementPage> {
+    const query = new URLSearchParams({ page: String(input.page ?? 1), pageSize: String(input.pageSize ?? 20),
+      search: input.search ?? '', status: input.status ?? 'ALL' }); return this.request(`/admin/announcements?${query.toString()}`);
+  }
+  getAdminAnnouncement(id: string): Promise<AnnouncementRecord> { return this.request(`/admin/announcements/${encodeURIComponent(id)}`); }
+  createAnnouncement(input: unknown): Promise<AnnouncementRecord> {
+    return this.request('/admin/announcements', { method: 'POST', body: JSON.stringify(input) });
+  }
+  updateAnnouncement(id: string, input: unknown): Promise<AnnouncementRecord> {
+    return this.request(`/admin/announcements/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+  publishAnnouncement(id: string): Promise<AnnouncementRecord> {
+    return this.request(`/admin/announcements/${encodeURIComponent(id)}/publish`, { method: 'POST', body: '{}' });
+  }
+  archiveAnnouncement(id: string): Promise<AnnouncementRecord> {
+    return this.request(`/admin/announcements/${encodeURIComponent(id)}/archive`, { method: 'POST', body: '{}' });
+  }
+  downloadMembershipCard(): Promise<{ blob: Blob; filename: string }> { return this.download('/memberships/current/card'); }
+  downloadReport(type: string, input: Record<string, string>): Promise<{ blob: Blob; filename: string }> {
+    const query = new URLSearchParams(input); return this.download(`/admin/reports/${encodeURIComponent(type)}?${query.toString()}`);
+  }
+
   listEvents(input: { search?: string; category?: string; limit?: number } = {}): Promise<EventRecord[]> {
     const query = new URLSearchParams();
     if (input.search) query.set('search', input.search);
@@ -703,6 +752,17 @@ export class ApiClient {
     } catch {
       throw new ApiError(0, 'unavailable', 'MyAIS returned an unexpected response. Please try again.');
     }
+  }
+
+  private async download(path: string): Promise<{ blob: Blob; filename: string }> {
+    const token = await this.accessToken(); const headers = new Headers({ accept: 'application/octet-stream' });
+    if (token) headers.set('authorization', `Bearer ${token}`); let response: Response;
+    try { const fetcher = this.fetcher; response = await fetcher(`${this.baseUrl}${path}`, { headers }); }
+    catch { throw new ApiError(0, 'unavailable', 'MyAIS services are temporarily unavailable. Please try again.'); }
+    if (!response.ok) throw safeApiError(response.status);
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'myais-download';
+    return { blob: await response.blob(), filename };
   }
 }
 

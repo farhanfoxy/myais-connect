@@ -14,6 +14,9 @@ import { ReviewerPaymentsModule } from './reviewer-payments/reviewer-payments.mo
 import { MembershipsModule } from './memberships/memberships.module.js';
 import { EventsModule } from './events/events.module.js';
 import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module.js';
+import { AnnouncementsModule } from './announcements/announcements.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module.j
     MembershipsModule,
     EventsModule,
     AdminDashboardModule,
+    AnnouncementsModule,
+    NotificationsModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
 })

@@ -35,6 +35,8 @@ export const paymentReviewerRoles = ['TREASURER', 'SYSTEM_ADMINISTRATOR'] as con
 export const eventManagerRoles = [
   'PRESIDENT', 'DEPUTY_PRESIDENT', 'SECRETARY', 'ASSISTANT_SECRETARY', 'SYSTEM_ADMINISTRATOR',
 ] as const;
+export const announcementManagerRoles = eventManagerRoles;
+export const reportRoles = ['PRESIDENT', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'SYSTEM_ADMINISTRATOR'] as const;
 
 export function canReviewApplications(role: string | null): boolean {
   return (applicationReviewerRoles as readonly string[]).includes(role ?? '');
@@ -50,6 +52,12 @@ export function canReviewPayments(role: string | null): boolean {
 
 export function canManageEvents(role: string | null): boolean {
   return (eventManagerRoles as readonly string[]).includes(role ?? '');
+}
+export function canManageAnnouncements(role: string | null): boolean {
+  return (announcementManagerRoles as readonly string[]).includes(role ?? '');
+}
+export function canAccessReports(role: string | null): boolean {
+  return (reportRoles as readonly string[]).includes(role ?? '');
 }
 
 export function roleFamily(role: string | null): RoleFamily | null {
