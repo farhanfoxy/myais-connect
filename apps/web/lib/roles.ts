@@ -37,6 +37,9 @@ export const eventManagerRoles = [
 ] as const;
 export const announcementManagerRoles = eventManagerRoles;
 export const reportRoles = ['PRESIDENT', 'SECRETARY', 'ASSISTANT_SECRETARY', 'TREASURER', 'SYSTEM_ADMINISTRATOR'] as const;
+export const memberDirectoryRoles = ['PRESIDENT', 'DEPUTY_PRESIDENT', 'SECRETARY', 'ASSISTANT_SECRETARY',
+  'SYSTEM_ADMINISTRATOR'] as const;
+export const auditViewerRoles = ['PRESIDENT', 'SYSTEM_ADMINISTRATOR'] as const;
 
 export function canReviewApplications(role: string | null): boolean {
   return (applicationReviewerRoles as readonly string[]).includes(role ?? '');
@@ -58,6 +61,12 @@ export function canManageAnnouncements(role: string | null): boolean {
 }
 export function canAccessReports(role: string | null): boolean {
   return (reportRoles as readonly string[]).includes(role ?? '');
+}
+export function canAccessMemberDirectory(role: string | null): boolean {
+  return (memberDirectoryRoles as readonly string[]).includes(role ?? '');
+}
+export function canViewAuditLog(role: string | null): boolean {
+  return (auditViewerRoles as readonly string[]).includes(role ?? '');
 }
 
 export function roleFamily(role: string | null): RoleFamily | null {

@@ -55,11 +55,14 @@ const payments = [
 ];
 const events = [
   { id: 'e1', eventNumber: 'MYAIS-EVT-2026-0001', title: 'Future Forum', status: 'PUBLISHED',
-    startDate: new Date('2026-10-20T00:00:00Z'), startTime: '09:00', venueType: 'ONLINE', venueName: null },
+    startDate: new Date('2026-10-20T00:00:00Z'), startTime: '09:00', venueType: 'ONLINE', venueName: null,
+    _count: { eventRegistrationRecordsByEvent: 12 } },
   { id: 'e2', eventNumber: 'MYAIS-EVT-2026-0002', title: 'Draft Forum', status: 'DRAFT',
-    startDate: new Date('2026-10-21T00:00:00Z'), startTime: '09:00', venueType: 'ONLINE', venueName: null },
+    startDate: new Date('2026-10-21T00:00:00Z'), startTime: '09:00', venueType: 'ONLINE', venueName: null,
+    _count: { eventRegistrationRecordsByEvent: 0 } },
   { id: 'e3', eventNumber: 'MYAIS-EVT-2026-0003', title: 'Past Forum', status: 'PUBLISHED',
-    startDate: new Date('2026-10-01T00:00:00Z'), startTime: '09:00', venueType: 'PHYSICAL', venueName: 'KL' },
+    startDate: new Date('2026-10-01T00:00:00Z'), startTime: '09:00', venueType: 'PHYSICAL', venueName: 'KL',
+    _count: { eventRegistrationRecordsByEvent: 8 } },
 ];
 
 function database() {
@@ -142,6 +145,7 @@ test('system dashboard calculates canonical metrics, truthful trends and safe pr
   assert.equal(result.charts.applicationActivity.find(item => item.key === '2026-10').value, 1);
   assert.equal(result.operationalInsights.membershipsExpiringSoon, 1);
   assert.equal(result.upcomingEvents[0].title, 'Future Forum');
+  assert.equal(result.upcomingEvents[0].registrationCount, 12);
   assert.equal(result.attention[0].status, 'RECOMMENDED_FOR_APPROVAL');
   assert.equal(result.attention.some(item => item.kind === 'APPLICATION'), true);
   assert.equal(result.attention.some(item => item.kind === 'PAYMENT'), true);

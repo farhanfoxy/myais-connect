@@ -181,6 +181,10 @@ enum NotificationEventType {
   MEMBERSHIP_ACTIVATED
   ANNOUNCEMENT_PUBLISHED
   EVENT_PUBLISHED
+  EVENT_REGISTRATION_CONFIRMED
+  EVENT_REGISTRATION_CANCELLED
+  EVENT_CANCELLED
+  EVENT_CHECKED_IN
 }
 
 enum PaymentPaymentType {
@@ -262,6 +266,7 @@ model User {
   eligibilityAnswerRecordsByUser               EligibilityAnswer[]     @relation("EligibilityAnswer_userId")
   eventRecordsByCreatedByUser                  Event[]                 @relation("Event_createdByUserId")
   eventRegistrationRecordsByUser               EventRegistration[]     @relation("EventRegistration_userId")
+  eventRegistrationRecordsByCheckedInByUser    EventRegistration[]     @relation("EventRegistration_checkedInByUserId")
   informationRequestRecordsByRequestedByUser   InformationRequest[]    @relation("InformationRequest_requestedByUserId")
   memberProfileByUser                          MemberProfile?          @relation("MemberProfile_userId")
   membershipRecordsByUser                      Membership[]            @relation("Membership_userId")
@@ -697,20 +702,27 @@ model EventRegistration {
   legacyCreatedAt DateTime? @db.Timestamptz(3)
   legacyUpdatedAt DateTime? @db.Timestamptz(3)
 
-  eventId       String                          @db.Uuid
-  userId        String                          @db.Uuid
-  attendeeName  String?
-  attendeeEmail String?
-  status        EventRegistrationStatus?        @default(REGISTERED)
-  paymentStatus EventRegistrationPaymentStatus? @default(PENDING)
-  registeredAt  DateTime?                       @db.Timestamptz(3)
-  notes         String?
+  eventId           String                          @db.Uuid
+  userId            String                          @db.Uuid
+  attendeeName      String?
+  attendeeEmail     String?
+  status            EventRegistrationStatus?        @default(REGISTERED)
+  paymentStatus     EventRegistrationPaymentStatus? @default(PENDING)
+  registeredAt      DateTime?                       @db.Timestamptz(3)
+  ticketCode        String?                         @unique
+  checkedInAt       DateTime?                       @db.Timestamptz(3)
+  checkedInByUserId String?                         @db.Uuid
+  notes             String?
 
-  event Event @relation("EventRegistration_eventId", fields: [eventId], references: [id], onDelete: Restrict)
-  user  User  @relation("EventRegistration_userId", fields: [userId], references: [id], onDelete: Restrict)
+  event           Event @relation("EventRegistration_eventId", fields: [eventId], references: [id], onDelete: Restrict)
+  user            User  @relation("EventRegistration_userId", fields: [userId], references: [id], onDelete: Restrict)
+  checkedInByUser User? @relation("EventRegistration_checkedInByUserId", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
 
+  @@unique([eventId, userId])
   @@index([eventId])
+  @@index([eventId, status])
   @@index([userId])
+  @@index([checkedInByUserId])
 }
 
 model Announcement {

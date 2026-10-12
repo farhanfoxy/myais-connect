@@ -4,16 +4,16 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  BarChart3, Bell, CalendarDays, ChevronDown, CreditCard, FileClock, FileText, House, IdCard,
-  LayoutDashboard, LogOut, Megaphone, Menu, ShieldCheck, UserRound, X,
+  BarChart3, Bell, CalendarCheck2, CalendarDays, ChevronDown, CreditCard, FileClock, FileText, History, House, IdCard,
+  LayoutDashboard, LogOut, Megaphone, Menu, ShieldCheck, UserRound, UsersRound, X,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { useAuth } from '@/components/auth/auth-provider';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 import { NotificationBell } from '@/components/notifications/notification-center';
-import { canAccessReports, canManageAnnouncements, canManageEvents, canReviewApplications, canReviewPayments,
-  humanizeEnum, roleFamily } from '@/lib/roles';
+import { canAccessMemberDirectory, canAccessReports, canManageAnnouncements, canManageEvents, canReviewApplications,
+  canReviewPayments, canViewAuditLog, humanizeEnum, roleFamily } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 interface MenuItem { label: string; icon: typeof UserRound; href?: string }
@@ -26,7 +26,8 @@ const membershipItems: MenuItem[] = [
   { label: 'Membership card', icon: IdCard, href: '/my-card' },
 ];
 const memberDrawerItems: MenuItem[] = [...membershipItems,
-  { label: 'Events', icon: CalendarDays, href: '/events' }, { label: 'News', icon: Megaphone, href: '/news' },
+  { label: 'Events', icon: CalendarDays, href: '/events' }, { label: 'My events', icon: CalendarCheck2, href: '/my-events' },
+  { label: 'News', icon: Megaphone, href: '/news' },
   { label: 'Notifications', icon: Bell, href: '/notifications' }];
 function committeeItems(role: string | null): MenuItem[] {
   const items: MenuItem[] = [];
@@ -34,7 +35,9 @@ function committeeItems(role: string | null): MenuItem[] {
   if (canReviewPayments(role)) items.push({ label: 'Payments', icon: CreditCard, href: '/admin/payments' });
   if (canManageEvents(role)) items.push({ label: 'Events', icon: CalendarDays, href: '/admin/events' });
   if (canManageAnnouncements(role)) items.push({ label: 'Announcements', icon: Megaphone, href: '/admin/announcements' });
+  if (canAccessMemberDirectory(role)) items.push({ label: 'Members', icon: UsersRound, href: '/admin/members' });
   if (canAccessReports(role)) items.push({ label: 'Reports', icon: BarChart3, href: '/admin/reports' });
+  if (canViewAuditLog(role)) items.push({ label: 'Audit log', icon: History, href: '/admin/audit' });
   items.push({ label: 'Notifications', icon: Bell, href: '/notifications' });
   return items;
 }
@@ -151,6 +154,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const eventsEnabled = canManageEvents(user.role);
   const announcementsEnabled = canManageAnnouncements(user.role);
   const reportsEnabled = canAccessReports(user.role);
+  const membersEnabled = canAccessMemberDirectory(user.role);
   const drawerItems = isCommittee ? committeeItems(user.role) : memberDrawerItems;
   const identityHref = isCommittee ? '/admin' : '/profile';
 
@@ -174,6 +178,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             href="/admin/events">Events</Link>}
           {announcementsEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/announcements') && 'is-active')}
             href="/admin/announcements">News</Link>}
+          {membersEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/members') && 'is-active')}
+            href="/admin/members">Members</Link>}
           {reportsEnabled && <Link className={cn('top-nav-link', pathname.startsWith('/admin/reports') && 'is-active')}
             href="/admin/reports">Reports</Link>}
         </> :

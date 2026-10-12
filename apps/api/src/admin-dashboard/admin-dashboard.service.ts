@@ -125,7 +125,8 @@ export class AdminDashboardService {
       this.prisma.client.event.findMany({ where: upcomingWhere,
         orderBy: [{ startDate: 'asc' }, { startTime: 'asc' }, { id: 'asc' }], take: 3,
         select: { id: true, eventNumber: true, title: true, startDate: true, startTime: true,
-          venueType: true, venueName: true } }),
+          venueType: true, venueName: true, _count: { select: { eventRegistrationRecordsByEvent: {
+            where: { status: { in: ['REGISTERED', 'ATTENDED'] } } } } } } }),
       this.prisma.client.event.count({ where: upcomingWhere }),
       this.recentAudits(role),
     ]);
@@ -208,7 +209,8 @@ export class AdminDashboardService {
       kpis,
       charts,
       attention,
-      upcomingEvents: upcomingEvents.map(event => ({ ...event, startDate: event.startDate.toISOString().slice(0, 10) })),
+      upcomingEvents: upcomingEvents.map(event => ({ ...event, registrationCount: event._count.eventRegistrationRecordsByEvent,
+        _count: undefined, startDate: event.startDate.toISOString().slice(0, 10) })),
       recentActivity: audits.map(audit => ({ action: audit.action, label: auditLabel(audit.action),
         entityType: audit.entityType, reference: safeReference(audit.description), actorName: safeActorName(audit.actorName),
         createdAt: audit.createdAt.toISOString() })),

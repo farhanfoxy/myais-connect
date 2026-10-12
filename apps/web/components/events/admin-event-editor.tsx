@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, BadgeCheck, Ban, Eye, Save, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, BadgeCheck, Ban, Eye, Save, Send, UsersRound } from 'lucide-react';
 import { PageContainer, PageHeading, StatusBadge } from '@/components/dashboard/dashboard-ui';
 import { Button } from '@/components/ui/button';
 import type { AdminEventRecord, EventCategory, EventInput } from '@/lib/api-client';
@@ -104,6 +104,7 @@ export function AdminEventEditor({ id }: Readonly<{ id?: string }>) {
     <PageHeading eyebrow={id ? record?.eventNumber || 'Event management' : 'Event management'} title={id ? 'Edit event' : 'Create event'}
       description="Maintain the source-backed event details used by the member experience." />
     {record && <div className="event-editor-status"><StatusBadge tone={eventStatusTone(record.status)}>{statusLabel(record.status)}</StatusBadge>
+      <Link href={`/admin/events/${record.id}/registrations`}><UsersRound />Attendees</Link>
       {record.status === 'PUBLISHED' && <Link href={`/events/${record.id}`}><Eye />Member preview</Link>}</div>}
     <form ref={formRef} className="event-form" onSubmit={save} noValidate><fieldset disabled={saving}><section><header><span>01</span><div><h2>Event basics</h2><p>Title, category and member-facing information.</p></div></header>
       <div className="event-form-grid"><label className="event-field event-field-wide"><span>Event title *</span><input {...validationProps('title')} required maxLength={200} value={form.title} onChange={e => set('title', e.target.value)} /><FieldError errors={fieldErrors} name="title" /></label>
@@ -124,7 +125,7 @@ export function AdminEventEditor({ id }: Readonly<{ id?: string }>) {
         <label className="event-field"><span>Venue name</span><input {...validationProps('venueName')} value={form.venueName || ''} onChange={e => set('venueName', e.target.value)} /><FieldError errors={fieldErrors} name="venueName" /></label>
         <label className="event-field event-field-wide"><span>Physical address</span><textarea {...validationProps('physicalAddress')} rows={3} value={form.physicalAddress || ''} onChange={e => set('physicalAddress', e.target.value)} /><FieldError errors={fieldErrors} name="physicalAddress" /></label>
         <label className="event-field event-field-wide"><span>Online meeting URL</span><input {...validationProps('onlineMeetingUrl')} type="url" value={form.onlineMeetingUrl || ''} onChange={e => set('onlineMeetingUrl', e.target.value)} placeholder="https://" /><FieldError errors={fieldErrors} name="onlineMeetingUrl" /></label></div></section>
-      <section><header><span>03</span><div><h2>Registration & fees</h2><p>Registration remains informational in this MVP.</p></div></header><div className="event-form-grid">
+      <section><header><span>03</span><div><h2>Registration & fees</h2><p>Control the in-platform registration window and capacity.</p></div></header><div className="event-form-grid">
         <label className="event-field"><span>Registration start</span><input {...validationProps('registrationStart')} type="date" value={form.registrationStart || ''} onChange={e => set('registrationStart', e.target.value)} /><FieldError errors={fieldErrors} name="registrationStart" /></label>
         <label className="event-field"><span>Registration deadline</span><input {...validationProps('registrationDeadline')} type="date" value={form.registrationDeadline || ''} onChange={e => set('registrationDeadline', e.target.value)} /><FieldError errors={fieldErrors} name="registrationDeadline" /></label>
         <label className="event-field"><span>Capacity</span><input {...validationProps('capacity')} type="number" min="0" value={form.capacity ?? ''} onChange={e => set('capacity', e.target.value === '' ? null : Number(e.target.value))} /><FieldError errors={fieldErrors} name="capacity" /></label>

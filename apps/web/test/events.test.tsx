@@ -7,6 +7,8 @@ import { MemberEvents } from '@/components/events/member-events';
 import { EventDetail } from '@/components/events/event-detail';
 import { AdminEventList } from '@/components/events/admin-event-list';
 import { AdminEventEditor } from '@/components/events/admin-event-editor';
+import { MyEvents } from '@/components/events/my-events';
+import { EventAttendees } from '@/components/events/event-attendees';
 import { prepareEventInput } from '@/lib/event-form';
 import { eventStatusTone } from '@/lib/events';
 import { canManageEvents } from '@/lib/roles';
@@ -15,10 +17,14 @@ import type { AdminEventRecord, EventInput, EventRecord } from '@/lib/api-client
 const fixture = vi.hoisted(() => ({
   listEvents: vi.fn(), getEvent: vi.fn(), listAdminEvents: vi.fn(), getAdminEvent: vi.fn(),
   createEvent: vi.fn(), updateEvent: vi.fn(), publishEvent: vi.fn(), cancelEvent: vi.fn(), replace: vi.fn(),
+  getOwnEventRegistration: vi.fn(), registerForEvent: vi.fn(), cancelOwnEventRegistration: vi.fn(),
+  listOwnEventRegistrations: vi.fn(), listEventAttendees: vi.fn(), checkInEventTicket: vi.fn(),
+  manuallyCheckInEventRegistration: vi.fn(), downloadReport: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: fixture.replace }) }));
-vi.mock('@/lib/member-api', () => ({ createMemberApiClient: () => ({ listEvents: fixture.listEvents, getEvent: fixture.getEvent }) }));
+vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,QR') } }));
+vi.mock('@/lib/member-api', () => ({ createMemberApiClient: () => fixture }));
 vi.mock('@/lib/admin-api', () => ({ createAdminApiClient: () => fixture }));
 
 const event: EventRecord = {
@@ -43,6 +49,17 @@ beforeEach(() => {
   fixture.getAdminEvent.mockReset().mockResolvedValue(adminEvent); fixture.createEvent.mockReset().mockResolvedValue({ ...adminEvent, status: 'DRAFT' });
   fixture.updateEvent.mockReset().mockResolvedValue(adminEvent); fixture.publishEvent.mockReset().mockResolvedValue(adminEvent);
   fixture.cancelEvent.mockReset().mockResolvedValue({ ...adminEvent, status: 'CANCELLED' }); fixture.replace.mockReset();
+  fixture.getOwnEventRegistration.mockReset().mockResolvedValue(null);
+  fixture.registerForEvent.mockReset().mockResolvedValue({ status: 'REGISTERED', registeredAt: '2099-09-10T01:00:00.000Z',
+    checkedInAt: null, ticketCode: 'opaque-ticket-code', event });
+  fixture.cancelOwnEventRegistration.mockReset().mockResolvedValue({ status: 'CANCELLED', cancelled: true });
+  fixture.listOwnEventRegistrations.mockReset().mockResolvedValue([]);
+  fixture.listEventAttendees.mockReset().mockResolvedValue({ event: { id: event.id, eventNumber: event.eventNumber,
+    title: event.title, capacity: 100, limitedSeats: true, status: 'PUBLISHED' }, items: [], page: 1, pageSize: 20,
+    total: 0, totalPages: 0, registeredCount: 0, attendanceCount: 0 });
+  fixture.checkInEventTicket.mockReset().mockResolvedValue({ status: 'ATTENDED', checkedInAt: new Date().toISOString(),
+    alreadyCheckedIn: false, message: 'Check-in confirmed' });
+  fixture.manuallyCheckInEventRegistration.mockReset(); fixture.downloadReport.mockReset();
 });
 afterEach(cleanup);
 
@@ -93,11 +110,39 @@ describe('member events', () => {
     expect(await screen.findByRole('heading', { name: 'No upcoming events yet' })).toBeTruthy();
   });
 
-  it('shows published event detail without a fake registration action', async () => {
+  it('shows published event detail with the real registration action', async () => {
     render(<EventDetail id={event.id} />);
     expect(await screen.findByRole('heading', { name: 'Digital Futures Forum' })).toBeTruthy();
-    expect(screen.getByText('Registration information available')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Register/ })).toBeNull();
+    expect(screen.getByText('Registration is open')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Register' })).toBeTruthy();
+  });
+
+  it('registers through the owner-scoped API and renders the opaque QR ticket', async () => {
+    render(<EventDetail id={event.id} />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Register' }));
+    await waitFor(() => expect(fixture.registerForEvent).toHaveBeenCalledWith(event.id));
+    expect(await screen.findByRole('region', { name: 'Event ticket' })).toBeTruthy();
+    expect(screen.getByText('opaque-ticket-code')).toBeTruthy();
+  });
+});
+
+describe('event operations', () => {
+  it('renders member registrations and links to the ticket detail', async () => {
+    fixture.listOwnEventRegistrations.mockResolvedValue([{ status: 'REGISTERED', registeredAt: '2099-09-10T01:00:00.000Z',
+      checkedInAt: null, ticketCode: 'opaque-ticket-code', event }]);
+    render(<MyEvents />);
+    expect(await screen.findByRole('heading', { name: event.title })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'View ticket' }).getAttribute('href')).toBe(`/events/${event.id}`);
+  });
+
+  it('keeps attendee management operational with manual token fallback', async () => {
+    render(<EventAttendees id={event.id} />);
+    expect(await screen.findByRole('heading', { name: event.title })).toBeTruthy();
+    const input = screen.getByPlaceholderText('Scan or enter ticket code');
+    await userEvent.setup().type(input, 'opaque-ticket-code');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Check in' }));
+    await waitFor(() => expect(fixture.checkInEventTicket).toHaveBeenCalledWith(event.id, 'opaque-ticket-code'));
+    expect(await screen.findByText('Check-in confirmed')).toBeTruthy();
   });
 });
 

@@ -13,7 +13,7 @@ const fixture = vi.hoisted(() => ({
   providerUpload: vi.fn(), getCurrentApplication: vi.fn(),
   listApplications: vi.fn(), getCurrentPayment: vi.fn(),
   getCurrentMembership: vi.fn(),
-  listEvents: vi.fn(),
+  listEvents: vi.fn(), listOwnEventRegistrations: vi.fn(),
   state: {
     status: 'authenticated' as const,
     user: { id: 'user-1', email: 'member@example.test', fullName: 'Aisyah Rahman', photoUrl: null,
@@ -34,6 +34,7 @@ vi.mock('@/lib/member-api', () => ({
     getCurrentPayment: fixture.getCurrentPayment,
     getCurrentMembership: fixture.getCurrentMembership,
     listEvents: fixture.listEvents,
+    listOwnEventRegistrations: fixture.listOwnEventRegistrations,
   }),
 }));
 
@@ -94,6 +95,7 @@ beforeEach(() => {
   fixture.getCurrentPayment.mockReset().mockResolvedValue(null);
   fixture.getCurrentMembership.mockReset().mockResolvedValue(null);
   fixture.listEvents.mockReset().mockResolvedValue([]);
+  fixture.listOwnEventRegistrations.mockReset().mockResolvedValue([]);
 });
 
 describe('real member dashboard', () => {

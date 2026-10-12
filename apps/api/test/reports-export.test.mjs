@@ -14,6 +14,7 @@ function emptyClient(calls = {}) {
     membershipApplication: { async findMany(input) { calls.application = input; return []; } },
     payment: { async findMany(input) { calls.payment = input; return []; } },
     event: { async findMany(input) { calls.event = input; return []; } },
+    eventRegistration: { async findMany(input) { calls.eventAttendance = input; return []; } },
     auditLog: { async create(input) { (calls.audits ??= []).push(input); return {}; } } };
 }
 
@@ -51,6 +52,26 @@ test('every report type produces valid empty CSV and XLSX files with authorized 
       else assert.equal(result.data.subarray(0, 2).toString(), 'PK');
     }
   }
+});
+
+test('event attendance CSV/XLSX exports are authorized, scoped and formula-safe', async () => {
+  const attendanceClient = (calls) => ({ ...emptyClient(calls), eventRegistration: { async findMany(input) {
+    calls.eventAttendance = input; return [{ status: 'ATTENDED', registeredAt: new Date('2026-10-10T01:00:00Z'),
+      checkedInAt: new Date('2026-10-10T02:00:00Z'), attendeeName: '=DANGEROUS()',
+      event: { eventNumber: 'MYAIS-EVT-2026-0001', title: 'Forum' }, user: { fullName: 'Member',
+        membershipRecordsByUser: [{ id: 'member-record', membershipNumber: 'MYAIS-1', membershipTypeName: 'Ordinary',
+          membershipTypeCode: 'ORDINARY', status: 'ACTIVE', expiryDate: null, createdAt: new Date(),
+          membershipType: { name: 'Ordinary' } }] } }]; } } });
+  const calls = {}; const service = new ReportsService({ client: attendanceClient(calls) });
+  const query = { format: 'csv', eventId: '11111111-1111-4111-8111-111111111111' };
+  const csv = await service.export({ ...actor, role: UserRole.SECRETARY }, 'event-attendance', query);
+  assert.match(csv.data.toString('utf8'), /"'=DANGEROUS\(\)"/);
+  assert.equal(calls.eventAttendance.where.eventId, query.eventId);
+  const xlsx = await service.export({ ...actor, role: UserRole.DEPUTY_PRESIDENT }, 'event-attendance',
+    { ...query, format: 'xlsx' });
+  assert.equal(xlsx.data.subarray(0, 2).toString(), 'PK');
+  await assert.rejects(service.export({ ...actor, role: UserRole.TREASURER }, 'event-attendance', query),
+    error => error.getStatus() === 403);
 });
 
 test('controller preserves attachment metadata for browser downloads', async () => {

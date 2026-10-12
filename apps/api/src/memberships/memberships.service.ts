@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PrismaService } from '../database/prisma.service.js';
+import { isActiveMembership } from './membership-lifecycle.js';
 
 function dateOnly(value: Date | null): string | null {
   return value?.toISOString().slice(0, 10) ?? null;
@@ -26,7 +27,7 @@ export class MembershipsService {
         membershipType: { select: { code: true, name: true } },
       },
     });
-    if (!membership) return null;
+    if (!membership || !isActiveMembership(membership)) return null;
     const { membershipType, ...safeMembership } = membership;
     return {
       ...safeMembership,
@@ -40,10 +41,13 @@ export class MembershipsService {
 
   async downloadOwnCard(userId: string) {
     const membership = await this.prisma.client.membership.findFirst({ where: { userId, status: 'ACTIVE' },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { membershipNumber: true, membershipTypeName: true,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { status: true,
+        membershipNumber: true, membershipTypeName: true,
         startDate: true, expiryDate: true, membershipType: { select: { name: true, active: true } },
         user: { select: { fullName: true, email: true, memberProfileByUser: { select: { fullName: true } } } } } });
-    if (!membership || membership.membershipType.active !== true) throw new NotFoundException('Active membership card not available');
+    if (!membership || !isActiveMembership(membership) || membership.membershipType.active !== true) {
+      throw new NotFoundException('Active membership card not available');
+    }
     const name = membership.user.memberProfileByUser?.fullName || membership.user.fullName || membership.user.email || 'MyAIS Member';
     const pdf = await PDFDocument.create(); const page = pdf.addPage([720, 450]);
     const regular = await pdf.embedFont(StandardFonts.Helvetica); const bold = await pdf.embedFont(StandardFonts.HelveticaBold);

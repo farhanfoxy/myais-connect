@@ -248,6 +248,12 @@ export class EventsService {
         if (users.length) await transaction.notification.createMany({ data: users.map(user => ({ userId: user.id, type: 'SYSTEM',
           eventType: 'EVENT_PUBLISHED', title: 'New event published', message: updated.title,
           relatedEntityType: 'Event', actionUrl: `/events/${updated.id}` })) });
+      } else {
+        const registrations = await transaction.eventRegistration.findMany({ where: { eventId: id,
+          status: { in: ['REGISTERED', 'ATTENDED'] } }, select: { userId: true } });
+        if (registrations.length) await transaction.notification.createMany({ data: registrations.map(registration => ({
+          userId: registration.userId, type: 'SYSTEM', eventType: 'EVENT_CANCELLED', title: 'Event cancelled',
+          message: updated.title, relatedEntityType: 'Event', actionUrl: `/events/${updated.id}` })), skipDuplicates: true });
       }
       await this.audit(transaction, actor, `EVENT_${nextStatus}`, `Changed event status to ${nextStatus}`);
       return this.safeAdmin(updated);
@@ -282,16 +288,22 @@ export class EventsService {
 
   private safePublic(event: PublicEventRecord) {
     const { registrationUrl, ...safe } = event;
+    void registrationUrl;
+    const today = myaisBusinessDate(new Date());
+    const registrationStart = dateOnly(event.registrationStart);
+    const registrationDeadline = dateOnly(event.registrationDeadline);
+    const eventStart = dateOnly(event.startDate)!;
     return {
       ...safe,
       startDate: dateOnly(event.startDate),
       endDate: dateOnly(event.endDate),
-      registrationStart: dateOnly(event.registrationStart),
-      registrationDeadline: dateOnly(event.registrationDeadline),
+      registrationStart,
+      registrationDeadline,
       memberFee: event.memberFee?.toString() ?? null,
       nonMemberFee: event.nonMemberFee?.toString() ?? null,
       publishedAt: event.publishedAt?.toISOString() ?? null,
-      registrationAvailable: Boolean(registrationUrl),
+      registrationAvailable: event.status === 'PUBLISHED' && (!registrationStart || today >= registrationStart) &&
+        (!registrationDeadline || today <= registrationDeadline) && today <= eventStart,
     };
   }
 

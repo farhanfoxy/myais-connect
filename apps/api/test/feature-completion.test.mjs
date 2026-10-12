@@ -58,7 +58,7 @@ test('notifications are isolated to the principal and unread mutations cannot cr
 });
 
 test('membership card PDF is generated only from an owned active membership', async () => {
-  const active = { membershipNumber: 'MYAIS-2026-000001', membershipTypeName: 'Ordinary Member', startDate: new Date('2026-01-01'),
+  const active = { status: 'ACTIVE', membershipNumber: 'MYAIS-2026-000001', membershipTypeName: 'Ordinary Member', startDate: new Date('2026-01-01'),
     expiryDate: new Date('2026-12-31'), membershipType: { name: 'Ordinary Member', active: true },
     user: { fullName: 'Member Name', email: 'member@example.test', memberProfileByUser: { fullName: 'Member Name' } } };
   let where; const service = new MembershipsService({ client: { membership: { async findFirst(input) { where = input.where; return active; } } } });

@@ -211,7 +211,7 @@ export function AdminCommandDashboard() {
       <ul className="admin-event-list">{data.upcomingEvents.map(event => <li key={event.id}><Link
         href={data.permissions.manageEvents ? `/admin/events/${event.id}` : `/events/${event.id}`}><time dateTime={event.startDate}>
           {eventDate(event.startDate, event.startTime)}</time><strong>{event.title}</strong><span>{event.eventNumber || statusLabel(event.venueType)}
-            {event.venueName ? ` · ${event.venueName}` : ''}</span><ArrowRight /></Link></li>)}</ul>}
+            {event.venueName ? ` · ${event.venueName}` : ''} · {event.registrationCount} registered</span><ArrowRight /></Link></li>)}</ul>}
       <Link className="admin-panel-link" href={data.permissions.manageEvents ? '/admin/events' : '/events'}>
         {data.permissions.manageEvents ? 'Manage events' : 'View events'} <ArrowRight /></Link></section>
 

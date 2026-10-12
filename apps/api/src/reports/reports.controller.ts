@@ -10,7 +10,8 @@ import { ReportsService } from './reports.service.js';
 
 @Controller('admin/reports')
 @UseGuards(SupabaseJwtGuard, ActiveAccountGuard, RolesGuard)
-@Roles(UserRole.SYSTEM_ADMINISTRATOR, UserRole.PRESIDENT, UserRole.SECRETARY, UserRole.ASSISTANT_SECRETARY, UserRole.TREASURER)
+@Roles(UserRole.SYSTEM_ADMINISTRATOR, UserRole.PRESIDENT, UserRole.DEPUTY_PRESIDENT, UserRole.SECRETARY,
+  UserRole.ASSISTANT_SECRETARY, UserRole.TREASURER)
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
   @Get(':type')

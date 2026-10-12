@@ -14,7 +14,7 @@ import { MembershipCardVisual } from '@/components/membership/digital-membership
 import { EventCard } from '@/components/events/event-card';
 import { NewsList } from '@/components/news/news-list';
 import type { JourneyStep } from '@/components/dashboard/dashboard-ui';
-import type { CurrentMembership, CurrentPayment, EventRecord, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
+import type { CurrentMembership, CurrentPayment, EventRecord, EventRegistrationRecord, MemberProfileResponse, MembershipApplicationSummary } from '@/lib/api-client';
 import { createMemberApiClient } from '@/lib/member-api';
 import { applicationAction, statusLabel, statusTone } from '@/lib/member-status';
 import { humanizeEnum } from '@/lib/roles';
@@ -67,12 +67,15 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [events, setEvents] = useState<EventRecord[] | null>(null);
+  const [nextRegistration, setNextRegistration] = useState<EventRegistrationRecord | null>(null);
 
   useEffect(() => {
     if (state.status !== 'authenticated') return;
     let active = true;
     const api = createMemberApiClient();
     void api.listEvents({ limit: 2 }).then(value => { if (active) setEvents(value); }).catch(() => { if (active) setEvents([]); });
+    void api.listOwnEventRegistrations('UPCOMING').then(value => { if (active) setNextRegistration(value.find(item =>
+      item.status === 'REGISTERED' || item.status === 'ATTENDED') ?? null); }).catch(() => { if (active) setNextRegistration(null); });
     const optionalPayment = api.getCurrentPayment().catch(() => null);
     const optionalMembership = api.getCurrentMembership().then(membership => ({ membership, unavailable: false }))
       .catch(() => ({ membership: null, unavailable: true }));
@@ -126,6 +129,11 @@ export default function DashboardPage() {
     {data?.membershipUnavailable && <div className="dashboard-inline-notice" role="status">
       Membership card temporarily unavailable. Your other dashboard information is still available.
     </div>}
+
+    {nextRegistration && <Link className="dashboard-next-event" href={`/events/${nextRegistration.event.id}`}>
+      <CalendarDays /><div><span>Your next registered event</span><strong>{nextRegistration.event.title}</strong>
+        <small>{nextRegistration.event.startDate} · {nextRegistration.event.startTime} · {statusLabel(nextRegistration.status)}</small></div>
+      <span>View ticket</span></Link>}
 
     <section className="dashboard-section event-showcase" aria-labelledby="featured-events-heading">
       <SectionHeading id="featured-events-heading" title="Featured events"

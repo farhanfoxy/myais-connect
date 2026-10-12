@@ -35,7 +35,7 @@ function project(row, select) {
   return Object.fromEntries(Object.keys(select).filter(key => select[key] === true).map(key => [key, row[key]]));
 }
 
-function database(seed = [baseEvent]) {
+function database(seed = [baseEvent], registeredUsers = []) {
   const events = seed.map(item => ({ ...item }));
   const audits = [];
   const notifications = [];
@@ -69,6 +69,7 @@ function database(seed = [baseEvent]) {
   };
   const client = {
     event: eventApi,
+    eventRegistration: { async findMany() { return registeredUsers.map(userId => ({ userId })); } },
     user: { async findMany() { return [{ id: '99999999-9999-4999-8999-999999999999' }]; } },
     notification: { async createMany({ data }) { notifications.push(...data); return { count: data.length }; } },
     auditLog: { async create({ data }) { audits.push(data); return data; } },
@@ -143,6 +144,14 @@ test('update validation and status transitions are server-enforced', async () =>
   assert.equal(cancelled.status, 'CANCELLED');
   assert.equal(cancelled.cancellationReason, 'Venue unavailable');
   await assert.rejects(db.service.cancel(actor, eventId, { reason: 'Again' }), error => error.getStatus() === 409);
+});
+
+test('event cancellation notifies each registered user with the canonical event notification', async () => {
+  const db = database([baseEvent], ['77777777-7777-4777-8777-777777777777']);
+  await db.service.cancel(actor, eventId, { reason: 'Venue unavailable' });
+  assert.equal(db.notifications.length, 1);
+  assert.equal(db.notifications[0].eventType, 'EVENT_CANCELLED');
+  assert.equal(db.notifications[0].userId, '77777777-7777-4777-8777-777777777777');
 });
 
 test('published event details remain editable without changing lifecycle state', async () => {

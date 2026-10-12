@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@myais/database';
 import { ActiveAccountGuard } from '../auth/active-account.guard.js';
 import type { CanonicalPrincipal } from '../auth/auth.types.js';
@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
 import { SupabaseJwtGuard } from '../auth/supabase-jwt.guard.js';
+import { EventRegistrationsService } from './event-registrations.service.js';
 import { EventsService } from './events.service.js';
 
 export const eventManagerRoles = [
@@ -19,10 +20,30 @@ export const eventManagerRoles = [
 @Controller('events')
 @UseGuards(SupabaseJwtGuard, ActiveAccountGuard)
 export class EventsController {
-  constructor(private readonly events: EventsService) {}
+  constructor(private readonly events: EventsService, private readonly registrations: EventRegistrationsService) {}
 
   @Get()
   list(@Query() query: unknown) { return this.events.memberList(query); }
+
+  @Get('me/registrations')
+  ownRegistrations(@CurrentUser() actor: CanonicalPrincipal, @Query() query: unknown) {
+    return this.registrations.ownList(actor.id, query);
+  }
+
+  @Get(':id/registration/me')
+  ownRegistration(@CurrentUser() actor: CanonicalPrincipal, @Param('id') id: string) {
+    return this.registrations.ownForEvent(actor.id, id);
+  }
+
+  @Post(':id/registrations')
+  register(@CurrentUser() actor: CanonicalPrincipal, @Param('id') id: string) {
+    return this.registrations.register(actor, id);
+  }
+
+  @Delete(':id/registrations/me')
+  cancelRegistration(@CurrentUser() actor: CanonicalPrincipal, @Param('id') id: string) {
+    return this.registrations.cancelOwn(actor, id);
+  }
 
   @Get(':id')
   detail(@Param('id') id: string) { return this.events.memberDetail(id); }
@@ -32,10 +53,24 @@ export class EventsController {
 @UseGuards(SupabaseJwtGuard, ActiveAccountGuard, RolesGuard)
 @Roles(...eventManagerRoles)
 export class AdminEventsController {
-  constructor(private readonly events: EventsService) {}
+  constructor(private readonly events: EventsService, private readonly registrations: EventRegistrationsService) {}
 
   @Get()
   list(@Query() query: unknown) { return this.events.adminList(query); }
+
+  @Get(':id/registrations')
+  registrationsList(@Param('id') id: string, @Query() query: unknown) { return this.registrations.adminList(id, query); }
+
+  @Post(':id/registrations/check-in')
+  qrCheckIn(@CurrentUser() actor: CanonicalPrincipal, @Param('id') id: string, @Body() input: unknown) {
+    return this.registrations.qrCheckIn(actor, id, input);
+  }
+
+  @Post(':id/registrations/:registrationId/check-in')
+  manualCheckIn(@CurrentUser() actor: CanonicalPrincipal, @Param('id') id: string,
+    @Param('registrationId') registrationId: string) {
+    return this.registrations.manualCheckIn(actor, id, registrationId);
+  }
 
   @Get(':id')
   detail(@Param('id') id: string) { return this.events.adminDetail(id); }

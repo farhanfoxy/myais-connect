@@ -17,6 +17,8 @@ import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module.j
 import { AnnouncementsModule } from './announcements/announcements.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { AdminMembersModule } from './admin-members/admin-members.module.js';
+import { AuditLogsModule } from './audit-logs/audit-logs.module.js';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { ReportsModule } from './reports/reports.module.js';
     AnnouncementsModule,
     NotificationsModule,
     ReportsModule,
+    AdminMembersModule,
+    AuditLogsModule,
   ],
   controllers: [HealthController],
 })

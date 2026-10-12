@@ -391,6 +391,54 @@ export interface AdminEventQueue {
   totalPages: number;
 }
 
+export interface EventRegistrationRecord {
+  status: 'REGISTERED' | 'CANCELLED' | 'ATTENDED' | 'NO_SHOW';
+  registeredAt: string | null;
+  checkedInAt: string | null;
+  ticketCode: string | null;
+  event: {
+    id: string; eventNumber: string | null; title: string; summary: string | null; status: EventStatus;
+    startDate: string; startTime: string; endDate: string | null; endTime: string | null;
+    venueType: 'PHYSICAL' | 'ONLINE' | 'HYBRID'; venueName: string | null; physicalAddress: string | null;
+    registrationDeadline: string | null; timezone: string; cancellationReason: string | null;
+  };
+}
+
+export interface AdminEventAttendeePage {
+  event: { id: string; eventNumber: string | null; title: string; capacity: number | null; limitedSeats: boolean | null; status: string };
+  items: Array<{ id: string; name: string | null; status: string; registeredAt: string | null;
+    checkedInAt: string | null; membershipNumber: string | null; membershipType: string | null }>;
+  page: number; pageSize: number; total: number; totalPages: number; registeredCount: number; attendanceCount: number;
+}
+
+export interface AdminMemberPage {
+  items: Array<{ id: string; name: string | null; email: string | null; accountStatus: string | null; joinedAt: string | null;
+    membership: null | { id: string; membershipNumber: string | null; membershipTypeCode: string | null;
+      membershipTypeName: string | null; status: string | null; startDate: string | null; expiryDate: string | null;
+      activatedAt: string | null; noExpiry: boolean } }>;
+  page: number; pageSize: number; total: number; totalPages: number;
+}
+
+export interface AdminMemberDetail {
+  profile: { id: string; name: string | null; email: string | null; phoneNumber: string | null; photoUrl: string | null;
+    role: string | null; accountStatus: string | null; createdAt: string; city: string | null; state: string | null;
+    country: string | null; institution: string | null; occupation: string | null; department: string | null;
+    areaOfExpertise: string | null };
+  currentMembership: AdminMemberPage['items'][number]['membership'];
+  membershipHistory: Array<NonNullable<AdminMemberPage['items'][number]['membership']>>;
+  applicationHistory: Array<Record<string, string | null>>;
+  paymentHistory: Array<Record<string, string | null>>;
+  eventRegistrations: Array<{ id: string; status: string | null; registeredAt: string | null; checkedInAt: string | null;
+    event: { id: string; eventNumber: string | null; title: string; startDate: string | null; startTime: string; status: string | null } }>;
+  activity: Array<{ id: string; action: string; entityType: string | null; description: string; createdAt: string }>;
+}
+
+export interface AuditLogPage {
+  items: Array<{ id: string; actorName: string; action: string; actionLabel: string; entityType: string | null;
+    description: string; createdAt: string }>;
+  page: number; pageSize: number; total: number; totalPages: number;
+}
+
 export interface AdminDashboardResponse {
   viewer: { displayName: string; role: string };
   permissions: { reviewApplications: boolean; finalApproval: boolean; verifyPayments: boolean; manageEvents: boolean };
@@ -411,7 +459,7 @@ export interface AdminDashboardResponse {
   }>;
   upcomingEvents: Array<{
     id: string; eventNumber: string | null; title: string; startDate: string; startTime: string;
-    venueType: string; venueName: string | null;
+    venueType: string; venueName: string | null; registrationCount: number;
   }>;
   recentActivity: Array<{
     action: string; label: string; entityType: string | null; reference: string | null;
@@ -676,6 +724,19 @@ export class ApiClient {
 
   getEvent(id: string): Promise<EventRecord> { return this.request(`/events/${encodeURIComponent(id)}`); }
 
+  getOwnEventRegistration(id: string): Promise<EventRegistrationRecord | null> {
+    return this.request(`/events/${encodeURIComponent(id)}/registration/me`);
+  }
+  listOwnEventRegistrations(scope: 'ALL' | 'UPCOMING' | 'PAST' = 'ALL'): Promise<EventRegistrationRecord[]> {
+    return this.request(`/events/me/registrations?scope=${scope}`);
+  }
+  registerForEvent(id: string): Promise<EventRegistrationRecord> {
+    return this.request(`/events/${encodeURIComponent(id)}/registrations`, { method: 'POST', body: '{}' });
+  }
+  cancelOwnEventRegistration(id: string): Promise<{ status: string; cancelled: boolean }> {
+    return this.request(`/events/${encodeURIComponent(id)}/registrations/me`, { method: 'DELETE' });
+  }
+
   listAdminEvents(input: { page: number; pageSize: number; search: string; category: string; status: string }): Promise<AdminEventQueue> {
     const query = new URLSearchParams({ page: String(input.page), pageSize: String(input.pageSize), search: input.search,
       category: input.category, status: input.status });
@@ -700,6 +761,28 @@ export class ApiClient {
     return this.request(`/admin/events/${encodeURIComponent(id)}/cancel`, {
       method: 'POST', body: JSON.stringify({ reason }),
     });
+  }
+
+  listAdminMembers(input: Record<string, string>): Promise<AdminMemberPage> {
+    return this.request(`/admin/members?${new URLSearchParams(input).toString()}`);
+  }
+  getAdminMember(id: string): Promise<AdminMemberDetail> { return this.request(`/admin/members/${encodeURIComponent(id)}`); }
+  listAuditLogs(input: Record<string, string>): Promise<AuditLogPage> {
+    return this.request(`/admin/audit?${new URLSearchParams(input).toString()}`);
+  }
+  listEventAttendees(id: string, input: Record<string, string>): Promise<AdminEventAttendeePage> {
+    return this.request(`/admin/events/${encodeURIComponent(id)}/registrations?${new URLSearchParams(input).toString()}`);
+  }
+  checkInEventTicket(id: string, ticketCode: string): Promise<{ status: string; checkedInAt: string | null;
+    alreadyCheckedIn: boolean; message: string }> {
+    return this.request(`/admin/events/${encodeURIComponent(id)}/registrations/check-in`, {
+      method: 'POST', body: JSON.stringify({ ticketCode }),
+    });
+  }
+  manuallyCheckInEventRegistration(eventId: string, registrationId: string): Promise<{ status: string;
+    checkedInAt: string | null; alreadyCheckedIn: boolean; message: string }> {
+    return this.request(`/admin/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(registrationId)}/check-in`,
+      { method: 'POST', body: '{}' });
   }
 
   authorizePaymentReceiptUpload(input: {

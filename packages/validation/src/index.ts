@@ -269,6 +269,42 @@ export const cancelEventSchema = z.object({
   reason: z.string().trim().min(1, 'Cancellation reason is required').max(1_000),
 }).strict();
 
+export const eventRegistrationStatusSchema = z.enum(['REGISTERED', 'CANCELLED', 'ATTENDED', 'NO_SHOW']);
+export const myEventRegistrationQuerySchema = z.object({
+  scope: z.enum(['ALL', 'UPCOMING', 'PAST']).default('ALL'),
+}).strict();
+export const adminEventRegistrationQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  status: z.union([z.literal('ALL'), eventRegistrationStatusSchema]).default('ALL'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
+export const eventTicketCheckInSchema = z.object({
+  ticketCode: z.string().trim().regex(/^[A-Za-z0-9_-]{20,64}$/, 'Invalid event ticket'),
+}).strict();
+
+export const adminMemberQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  membershipType: z.enum(['ALL', 'ORDINARY', 'LIFETIME', 'ASSOCIATE', 'HONORARY']).default('ALL'),
+  membershipStatus: z.enum(['ALL', 'PENDING', 'ACTIVE', 'EXPIRED', 'SUSPENDED', 'TERMINATED']).default('ALL'),
+  accountStatus: z.enum(['ALL', 'ACTIVE', 'DISABLED', 'SUSPENDED']).default('ALL'),
+  sort: z.enum(['name', 'email', 'accountStatus', 'createdAt']).default('name'),
+  order: z.enum(['asc', 'desc']).default('asc'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
+
+export const auditLogQuerySchema = z.object({
+  actor: z.string().trim().max(200).default(''),
+  action: z.string().trim().max(120).default(''),
+  entity: z.string().trim().max(120).default(''),
+  from: calendarDate.optional(),
+  to: calendarDate.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+}).strict().refine(value => !value.from || !value.to || value.from <= value.to,
+  { path: ['to'], message: 'End date must be on or after start date' });
+
 export type EventInput = z.infer<typeof eventInputSchema>;
 
 export const announcementCategorySchema = z.enum(['GENERAL', 'EVENT', 'MEMBERSHIP', 'POLICY', 'TRAINING']);
@@ -297,12 +333,13 @@ export const notificationQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
 }).strict();
 
-export const reportTypeSchema = z.enum(['member-directory', 'membership', 'application', 'payment', 'event']);
+export const reportTypeSchema = z.enum(['member-directory', 'membership', 'application', 'payment', 'event', 'event-attendance']);
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export const reportQuerySchema = z.object({
   format: reportFormatSchema.default('csv'),
   status: z.string().trim().max(80).optional(),
   membershipType: z.string().trim().max(80).optional(),
+  eventId: uuidPathSchema.optional(),
   from: calendarDate.optional(),
   to: calendarDate.optional(),
 }).strict().refine(value => !value.from || !value.to || value.from <= value.to,

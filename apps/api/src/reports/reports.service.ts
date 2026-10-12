@@ -4,11 +4,14 @@ import { reportQuerySchema, reportTypeSchema, type ReportType } from '@myais/val
 import ExcelJS from 'exceljs';
 import type { CanonicalPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { resolveCurrentMembership } from '../memberships/membership-lifecycle.js';
 
 type Cell = string | number | boolean | Date | null;
 interface Table { name: string; headers: string[]; rows: Cell[][] }
 const allReportRoles = ['SYSTEM_ADMINISTRATOR', 'PRESIDENT'] as const;
 const secretariatReports: ReportType[] = ['member-directory', 'membership', 'application', 'event'];
+const eventAttendanceRoles = ['SYSTEM_ADMINISTRATOR', 'PRESIDENT', 'DEPUTY_PRESIDENT', 'SECRETARY',
+  'ASSISTANT_SECRETARY'] as const;
 
 function safeCell(value: Cell): Cell {
   if (typeof value === 'string' && /^[=+\-@]/.test(value)) return `'${value}`;
@@ -52,12 +55,13 @@ export class ReportsService {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
   }
   private authorize(role: string | null, type: ReportType) {
+    if (type === 'event-attendance' && role && eventAttendanceRoles.includes(role as (typeof eventAttendanceRoles)[number])) return;
     if (role && allReportRoles.includes(role as (typeof allReportRoles)[number])) return;
     if ((role === 'SECRETARY' || role === 'ASSISTANT_SECRETARY') && secretariatReports.includes(type)) return;
     if (role === 'TREASURER' && type === 'payment') return;
     throw new ForbiddenException('This role cannot export the requested report');
   }
-  private validateFilters(type: ReportType, query: { status?: string; membershipType?: string }) {
+  private validateFilters(type: ReportType, query: { status?: string; membershipType?: string; eventId?: string }) {
     const statuses: Record<ReportType, readonly string[]> = {
       'member-directory': ['ACTIVE', 'INACTIVE'], membership: ['PENDING', 'ACTIVE', 'EXPIRED', 'SUSPENDED', 'TERMINATED'],
       application: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'ADDITIONAL_INFORMATION_REQUIRED', 'ELIGIBLE',
@@ -65,19 +69,23 @@ export class ReportsService {
         'ACTIVE', 'REJECTED', 'EXPIRED', 'SUSPENDED', 'TERMINATED'],
       payment: ['NOT_SUBMITTED', 'SUBMITTED', 'UNDER_VERIFICATION', 'VERIFIED', 'REJECTED'],
       event: ['DRAFT', 'PUBLISHED', 'REGISTRATION_CLOSED', 'CANCELLED', 'COMPLETED', 'ARCHIVED'],
+      'event-attendance': ['REGISTERED', 'CANCELLED', 'ATTENDED', 'NO_SHOW'],
     };
     if (query.status && !statuses[type].includes(query.status)) throw new BadRequestException('Invalid status filter');
     if (query.membershipType && !['ORDINARY', 'LIFETIME', 'ASSOCIATE', 'HONORARY'].includes(query.membershipType)) {
       throw new BadRequestException('Invalid membership type filter');
     }
+    if (type === 'event-attendance' && !query.eventId) throw new BadRequestException('Event is required');
   }
-  private async table(type: ReportType, query: { status?: string; membershipType?: string; from?: string; to?: string }): Promise<Table> {
+  private async table(type: ReportType, query: { status?: string; membershipType?: string; from?: string; to?: string;
+    eventId?: string }): Promise<Table> {
     switch (type) {
       case 'member-directory': return this.members(query);
       case 'membership': return this.memberships(query);
       case 'application': return this.applications(query);
       case 'payment': return this.payments(query);
       case 'event': return this.events(query);
+      case 'event-attendance': return this.eventAttendance(query);
     }
   }
   private async members(query: { status?: string; membershipType?: string; from?: string; to?: string }): Promise<Table> {
@@ -134,6 +142,25 @@ export class ReportsService {
     return { name: 'Events', headers: ['Event number', 'Title', 'Category', 'Status', 'Venue type', 'Start date', 'Start time', 'End date',
       'Published'], rows: rows.map(row => [row.eventNumber, row.title, row.category, row.status, row.venueType, row.startDate,
       row.startTime, row.endDate, row.publishedAt]) };
+  }
+  private async eventAttendance(query: { eventId?: string; status?: string; membershipType?: string; from?: string; to?: string }): Promise<Table> {
+    const rows = await this.prisma.client.eventRegistration.findMany({ where: { eventId: query.eventId,
+      ...(query.status ? { status: query.status as never } : {}),
+      ...(query.membershipType ? { user: { membershipRecordsByUser: { some: {
+        membershipType: { code: query.membershipType as never } } } } } : {}),
+      ...dateRange('registeredAt', query.from, query.to, 'malaysia-instant') },
+    orderBy: [{ registeredAt: 'asc' }, { id: 'asc' }], select: { status: true, registeredAt: true, checkedInAt: true,
+      attendeeName: true, event: { select: { eventNumber: true, title: true } }, user: { select: { fullName: true,
+        membershipRecordsByUser: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true,
+          membershipNumber: true, membershipTypeName: true, membershipTypeCode: true, status: true, expiryDate: true,
+          createdAt: true, membershipType: { select: { name: true } } } } } } } });
+    return { name: 'Event Attendance', headers: ['Event reference', 'Event title', 'Member number', 'Member name',
+      'Membership type', 'Registration timestamp', 'Attendance status', 'Check-in timestamp'], rows: rows.map(row => {
+        const membership = resolveCurrentMembership(row.user.membershipRecordsByUser);
+        return [row.event.eventNumber, row.event.title, membership?.membershipNumber ?? null,
+          row.attendeeName ?? row.user.fullName, membership ? membership.membershipTypeName ?? membership.membershipType.name : null,
+          row.registeredAt, row.status, row.checkedInAt];
+      }) };
   }
   private csv(table: Table): Buffer { const lines = [table.headers.map(csvCell).join(','),
     ...table.rows.map(row => row.map(csvCell).join(','))]; return Buffer.from(`\uFEFF${lines.join('\r\n')}`, 'utf8'); }
