@@ -50,8 +50,8 @@
 }
 
 html[data-theme="dark"] {
-  --background: #071521;
-  --background-atmosphere: radial-gradient(circle at 12% -4%, rgb(20 137 146 / .14), transparent 34%), radial-gradient(circle at 92% 4%, rgb(34 91 132 / .13), transparent 28%), linear-gradient(180deg, #081824 0%, #07131e 100%);
+  --background: #05111b;
+  --background-atmosphere: radial-gradient(circle at 12% -4%, rgb(20 137 146 / .12), transparent 32%), radial-gradient(circle at 92% 4%, rgb(34 91 132 / .1), transparent 27%), linear-gradient(180deg, #071723 0%, #05111b 100%);
   --navy-950: #f2f7f8;
   --navy-900: #e7f0f2;
   --navy-800: #d5e5e8;
@@ -61,17 +61,17 @@ html[data-theme="dark"] {
   --teal-500: #42b9b7;
   --ink-950: #eaf2f4;
   --ink-700: #c4d2d7;
-  --ink-500: #91a7b0;
-  --primary: #126f7b;
-  --primary-hover: #168997;
-  --surface: #0d202e;
-  --surface-elevated: #112735;
-  --surface-muted: #0a1b28;
-  --surface-soft: #152d3b;
-  --foreground: #eaf2f4;
-  --foreground-muted: #9db0b8;
-  --border: #294453;
-  --border-strong: #3a5b69;
+  --ink-500: #a7bac1;
+  --primary: #0f7882;
+  --primary-hover: #15929b;
+  --surface: #0b1d2a;
+  --surface-elevated: #102735;
+  --surface-muted: #081925;
+  --surface-soft: #173543;
+  --foreground: #f0f6f7;
+  --foreground-muted: #b1c1c7;
+  --border: #34515f;
+  --border-strong: #4a6b78;
   --success: #7bd0ad;
   --success-soft: #123a35;
   --warning: #e1b862;
@@ -79,11 +79,11 @@ html[data-theme="dark"] {
   --danger: #ef9197;
   --danger-soft: #3c232b;
   --info-soft: #163447;
-  --header-surface: rgb(10 27 40 / .94);
+  --header-surface: rgb(8 25 37 / .96);
   --overlay: rgb(0 7 13 / .7);
-  --chart-grid: #294250;
-  --chart-axis: #9cb0b8;
-  --chart-tooltip: #132a38;
+  --chart-grid: #35505c;
+  --chart-axis: #b5c5ca;
+  --chart-tooltip: #142d3b;
   --chart-1: #42b9bd;
   --chart-2: #75cfc8;
   --chart-3: #72a6cc;
@@ -600,13 +600,13 @@ html[data-theme="dark"] .admin-chart-card .recharts-tooltip-wrapper { color: var
 .header-icon-button:hover, .mobile-account-button:hover, .mobile-menu-button:hover { color: var(--navy-900); background: #f0f4f6; }
 .header-icon-button:active, .mobile-account-button:active, .mobile-menu-button:active { transform: scale(.97); }
 .mobile-account-button, .mobile-menu-button { display: none; }
-.user-menu-trigger { display: flex; max-width: 240px; min-height: 46px; align-items: center; border: 1px solid #c5d6dc; border-radius: 12px; padding: 3px 4px; color: var(--ink-700); background: rgb(255 255 255 / .58); box-shadow: 0 2px 8px rgb(7 42 57 / .035), inset 0 1px 0 rgb(255 255 255 / .8); transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease; }
+.user-menu-trigger { display: flex; max-width: 288px; min-height: 46px; align-items: center; border: 1px solid #c5d6dc; border-radius: 12px; padding: 3px 4px; color: var(--ink-700); background: rgb(255 255 255 / .58); box-shadow: 0 2px 8px rgb(7 42 57 / .035), inset 0 1px 0 rgb(255 255 255 / .8); transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease; }
 .user-menu-trigger:hover, .user-menu-trigger.is-open { color: var(--navy-900); border-color: #9dbbc2; background: #f0f6f7; box-shadow: 0 5px 14px rgb(7 55 69 / .07), inset 0 1px 0 white; }
 .user-profile-link { display: flex; min-width: 0; min-height: 38px; align-items: center; gap: 10px; border-radius: 9px; padding: 0 5px 0 1px; }
 .user-profile-link:focus-visible { outline-offset: 1px; }
 .account-menu-button { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border: 0; border-left: 1px solid #ccdce0; border-radius: 0 8px 8px 0; margin-left: 2px; color: #5d7481; background: transparent; }
 .account-menu-button:hover { color: var(--navy-900); background: rgb(255 255 255 / .58); }
-.user-menu-name { overflow: hidden; max-width: 112px; font-size: 12.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.user-menu-name { overflow: hidden; max-width: 158px; font-size: 12.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .user-avatar { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 10px; color: #eaffff; background: #0e6672; box-shadow: none; font-size: 12px; font-weight: 760; }
 .user-avatar { overflow: hidden; }
 .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -1490,11 +1490,11 @@ html, body { background: var(--workspace-mist); }
 .events-page, .event-detail-page, .admin-events-page, .admin-event-editor { max-width: 1120px; }
 .events-filter-bar, .event-admin-filters { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
 .events-filter-bar label, .event-admin-filters label { position: relative; min-width: 0; flex: 1; }
-.events-filter-bar label > svg, .event-admin-filters label > svg { position: absolute; top: 50%; left: 13px; width: 16px; transform: translateY(-50%); color: #78909a; }
+.events-filter-bar label > svg, .event-admin-filters label > svg { position: absolute; top: 50%; left: 13px; width: 16px; transform: translateY(-50%); color: var(--foreground-muted); }
 .events-filter-bar input, .events-filter-bar select, .event-admin-filters input, .event-admin-filters select,
 .event-field input, .event-field select, .event-field textarea, .event-transition-card input {
-  min-height: 43px; border: 1px solid #cbdde0; border-radius: 10px; padding: 9px 11px; color: #173b4b; background: rgb(255 255 255 / .9);
-  font: inherit; font-size: 12px; outline: none; transition: border-color 150ms ease, box-shadow 150ms ease;
+  min-height: 43px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 11px; color: var(--foreground); background: var(--surface-elevated);
+  font: inherit; font-size: 12px; outline: none; transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 .events-filter-bar input, .event-admin-filters input { width: 100%; padding-left: 39px; }
 .events-filter-bar select { min-width: 190px; }
@@ -2111,4 +2111,337 @@ html[data-theme="dark"] .is-selected .type-selection { border-color: #4ca6a8; ba
 
 @media (max-width: 760px) {
   body { background-attachment: scroll; }
+}
+
+/* Final production polish: semantic depth, contrast and interaction states. */
+html, body { min-height: 100%; }
+body { background-color: var(--background); }
+
+.button { min-height: 44px; border-radius: 11px; }
+.button-ghost:hover:not(:disabled) { color: var(--navy-900); background: var(--surface-soft); }
+.button-danger { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.button:disabled { color: var(--foreground-muted); border-color: var(--border); background: var(--surface-muted); opacity: .64; box-shadow: none; }
+
+.status-badge, .quiet-badge { border: 1px solid var(--border); font-weight: 720; }
+.status-badge-success { color: var(--success); border-color: color-mix(in srgb, var(--success) 38%, var(--border)); background: var(--success-soft); }
+.status-badge-warning { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 38%, var(--border)); background: var(--warning-soft); }
+.status-badge-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 38%, var(--border)); background: var(--danger-soft); }
+.status-badge-info { color: var(--blue-700); border-color: color-mix(in srgb, var(--blue-700) 34%, var(--border)); background: var(--info-soft); }
+
+@media (min-width: 761px) {
+  .profile-save-bar { width: auto; max-width: 360px; min-height: 48px; gap: 9px; padding: 4px 5px 4px 10px; }
+  .profile-save-bar .button { min-width: 118px; min-height: 38px; }
+}
+
+html[data-theme="dark"] :is(body, .app-frame, .auth-shell, .auth-form-panel, .centered-state-page,
+  .app-loading-screen) {
+  color: var(--foreground);
+  background-color: var(--background);
+}
+html[data-theme="dark"] .app-content { background: transparent; }
+
+/* Level 1: primary page surfaces. */
+html[data-theme="dark"] :is(.centered-state-card, .action-card, .account-summary, .admin-coming-soon,
+  .journey-card, .dashboard-card-highlight, .event-empty-state, .summary-card, .quick-action-tile,
+  .content-card, .profile-overview, .profile-section, .application-steps, .wizard-panel,
+  .membership-type-card, .application-state-card, .tracker-summary-card, .tracker-progress-card,
+  .tracker-section, .response-panel, .response-request-picker, .payment-form-panel, .payment-summary,
+  .payment-state-panel, .payment-success, .event-card, .event-detail-copy, .event-speaker, .event-facts,
+  .event-form section, .event-transition-card, .membership-card-details, .admin-kpi-card,
+  .admin-chart-card, .admin-operation-card, .admin-dashboard-error, .review-queue-panel,
+  .review-detail-section, .review-action-panel, .review-dialog, .review-card-list li,
+  .tracker-empty-state, .events-empty) {
+  border-color: var(--border);
+  background-color: var(--surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+html[data-theme="dark"] :is(.admin-command-header, .review-detail-hero) {
+  border-color: var(--border);
+  background: linear-gradient(135deg, #132e3c, #0d2331);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Level 2: nested information panels. */
+html[data-theme="dark"] :is(.profile-fieldset, .document-card, .review-grid > section, .review-documents,
+  .application-state-card > dl div, .tracker-summary-card > dl div, .information-request-list li,
+  .review-history-list li, .response-attachment, .response-selected-file, .payment-receipt-field,
+  .payment-detail-list > div, .payment-success dl > div, .payment-fee-summary > div,
+  .membership-association-brand, .membership-verification-note, .review-detail-note, .review-role-note,
+  .event-fees, .event-registration-note, .drawer-identity) {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+html[data-theme="dark"] :is(.review-documents > div, .document-list li, .payment-summary-reference,
+  .payment-summary > header, .payment-fee-summary, .review-queue-filters, .review-table th,
+  .review-table tbody tr:hover, .review-card-list, .event-admin-filters, .events-filter-bar,
+  .event-form section > header, .event-form-actions, .completion-track, .journey-meter) {
+  background: var(--surface-muted);
+}
+html[data-theme="dark"] :is(.journey-steps li:not(.is-complete):not(.is-current):not(.is-attention) .journey-marker,
+  .application-steps li:not(.is-complete):not(.is-current) > span,
+  .tracker-progress-list li:not(.is-complete):not(.is-current) .tracker-stage-marker,
+  .information-request-list li > span, .review-history-list li > span, .document-list li > span,
+  .tracker-empty-state > span, .events-empty > span, .events-empty > svg,
+  .review-dialog > header button) {
+  color: #78cfcc;
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+html[data-theme="dark"] .journey-steps::before,
+html[data-theme="dark"] .application-steps ol::before,
+html[data-theme="dark"] .tracker-progress-list::before { background: var(--border); }
+html[data-theme="dark"] :is(.journey-steps li.is-complete strong,
+  .tracker-progress-list li.is-complete, .application-steps li.is-complete) { color: #8fd8bd; }
+html[data-theme="dark"] :is(.journey-steps li.is-current strong,
+  .tracker-progress-list li.is-current, .application-steps li.is-current) { color: #8fe1dd; }
+html[data-theme="dark"] .journey-steps li.is-attention strong { color: #e7c675; }
+html[data-theme="dark"] :is(.journey-steps li.is-complete .journey-marker,
+  .tracker-progress-list li.is-complete .tracker-stage-marker,
+  .application-steps li.is-complete > span) {
+  color: #91d9ba;
+  border-color: #356556;
+  background: #17382f;
+}
+html[data-theme="dark"] .journey-steps li.is-attention .journey-marker {
+  color: #e7c675;
+  border-color: #6b5933;
+  background: #392f1e;
+}
+
+/* Level 3: controls and interactive surfaces. */
+html[data-theme="dark"] :is(.field-input, .profile-field input, .profile-field select,
+  .eligibility-fields input, .response-text-field textarea, .payment-form-panel .form-field input,
+  .payment-form-panel .form-field select, .event-field input, .event-field select, .event-field textarea,
+  .event-transition-card input, .review-search-field input, .review-status-filter select,
+  .review-form-field select, .review-form-field textarea, .review-form-field input) {
+  color: var(--foreground);
+  border-color: var(--border-strong);
+  background: #0a1b27;
+  color-scheme: dark;
+}
+html[data-theme="dark"] :is(input, textarea)::placeholder { color: #91a7af; opacity: 1; }
+html[data-theme="dark"] :is(input, select, textarea):hover:not(:disabled) { border-color: #5b7d89; }
+html[data-theme="dark"] :is(.field-input, .profile-field input, .profile-field select,
+  .eligibility-fields input, .response-text-field textarea, .payment-form-panel .form-field input,
+  .payment-form-panel .form-field select, .event-field input, .event-field select, .event-field textarea,
+  .event-transition-card input, .review-search-field input, .review-status-filter select,
+  .review-form-field select, .review-form-field textarea, .review-form-field input):focus {
+  border-color: #4db4b5;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(77 180 181 / .2);
+}
+html[data-theme="dark"] :is(input, select, textarea):disabled,
+html[data-theme="dark"] .profile-field input:read-only {
+  color: #91a6ae;
+  border-color: var(--border);
+  background: var(--surface-muted);
+  opacity: .78;
+}
+html[data-theme="dark"] :is([aria-invalid="true"], .field-input[aria-invalid="true"]) {
+  border-color: #cf747c;
+  background-color: #311f28;
+}
+
+html[data-theme="dark"] .button-primary { color: #f7ffff; border-color: #26939a; background: #0f7882; box-shadow: 0 6px 16px rgb(0 7 13 / .22); }
+html[data-theme="dark"] .button-primary:hover:not(:disabled) { background: #15929b; }
+html[data-theme="dark"] .button-secondary { color: var(--foreground); border-color: var(--border-strong); background: var(--surface); box-shadow: none; }
+html[data-theme="dark"] .button-secondary:hover:not(:disabled) { color: white; border-color: #5e8792; background: var(--surface-soft); }
+html[data-theme="dark"] .button-ghost { color: #c2d0d4; }
+html[data-theme="dark"] .button-danger { color: #f3a0a6; border-color: #70414a; background: #3c232b; }
+html[data-theme="dark"] .button:disabled { color: #849aa3; border-color: #2b4653; background: #0a1a26; opacity: .7; }
+
+/* Stronger text hierarchy without altering the fixed digital credential. */
+html[data-theme="dark"] :is(.page-heading span, .dashboard-section-heading p, .journey-next-action,
+  .journey-steps li, .journey-steps small, .summary-card p, .summary-card div > span,
+  .quick-action-tile small, .dashboard-inline-notice, .application-preview p,
+  .application-preview-state > span:last-child, .profile-identity p, .profile-identity div > span,
+  .profile-completion p, .profile-section header p, .profile-field > span small,
+  .ais-member-toggle small, .application-loading, .private-storage-note, .tracker-summary-card dt,
+  .tracker-progress-card > header > span, .tracker-progress-list small, .information-request-list p,
+  .review-history-list p, .information-request-list small, .review-history-list small,
+  .review-history-list time, .tracker-action-panel p, .tracker-empty-state p,
+  .response-request-picker header p, .response-attachment p, .response-selected-file small,
+  .payment-form-panel .form-field > span strong, .payment-form-panel .form-field > span small,
+  .payment-receipt-field p, .payment-submit-note, .payment-page-actions > a:not(.button),
+  .payment-summary dt, .payment-summary-reference span, .payment-state-panel > p,
+  .payment-success > p, .payment-detail-list dt, .payment-success dt, .event-detail-copy p,
+  .event-speaker span, .event-speaker p, .event-facts dt, .event-registration-note p,
+  .event-form section header p, .event-field, .event-form-feedback, .event-transition-card p,
+  .event-transition-card label, .review-queue-header > span, .review-table th,
+  .review-table td:first-child span, .review-pagination, .review-detail-hero span,
+  .review-detail-grid dt, .review-detail-note p, .review-read-only p, .review-role-note,
+  .review-document-list p, .review-document-list small, .review-document-list em,
+  .review-section-empty, .review-history-admin time, .review-history-admin small,
+  .review-history-admin p, .review-dialog > p, .review-form-field > span small,
+  .payment-review-table .payment-amount + span, .payment-fee-summary span,
+  .payment-receipt-review p, .admin-command-header p, .admin-kpi-card p,
+  .admin-kpi-card small, .admin-chart-card > header > span, .admin-donut-layout li,
+  .admin-chart-empty, .admin-attention-card li a > div:first-child span,
+  .admin-attention-state small, .admin-insight span, .admin-compact-empty,
+  .admin-event-list span, .admin-activity-list span, .admin-activity-list time,
+  .admin-dashboard-error p) {
+  color: var(--foreground-muted);
+}
+html[data-theme="dark"] :is(.profile-field, .response-text-field, .payment-form-panel .form-field,
+  .event-field, .review-status-filter, .review-form-field) { color: #d3dfe2; }
+html[data-theme="dark"] :is(.tracker-summary-card dd, .information-request-list strong,
+  .review-history-list strong, .response-selected-file strong, .payment-summary dd,
+  .payment-summary-reference strong, .payment-detail-list dd, .payment-success dd,
+  .event-facts dd, .event-registration-note strong, .review-table td,
+  .review-detail-grid dd, .review-detail-note strong, .review-read-only strong,
+  .review-document-list strong, .review-history-admin strong, .payment-review-table .payment-amount,
+  .payment-card-amount, .payment-detail-hero-state > strong, .payment-fee-summary strong,
+  .payment-receipt-review strong, .admin-kpi-card strong, .admin-donut-layout li strong,
+  .admin-attention-card li a > div:first-child strong, .admin-attention-state b,
+  .admin-insight b, .admin-compact-empty strong, .admin-event-list strong,
+  .admin-activity-list strong) { color: var(--foreground); }
+
+/* Navigation, separators and active states. */
+html[data-theme="dark"] :is(.product-header, .nav-popover, .mobile-drawer, .mobile-bottom-nav,
+  .profile-save-bar) { border-color: var(--border); background: var(--header-surface); }
+html[data-theme="dark"] .profile-save-bar { box-shadow: 0 10px 24px rgb(0 5 10 / .28); }
+html[data-theme="dark"] :is(.top-nav-link, .header-icon-button, .mobile-account-button,
+  .mobile-menu-button, .menu-option, .drawer-link, .mobile-bottom-nav a,
+  .mobile-bottom-nav button) { color: #b6c7cc; }
+html[data-theme="dark"] :is(.top-nav-link:hover, .top-nav-link.is-open, .top-nav-link.is-active,
+  .menu-option:hover, .menu-option:focus-visible, .drawer-link:hover, .drawer-link:focus-visible,
+  .drawer-link.is-active, .mobile-bottom-nav .is-active) {
+  color: #f2fafa;
+  background: var(--surface-soft);
+}
+html[data-theme="dark"] :is(.user-popover-identity, .signout-option, .drawer-header,
+  .review-table td, .review-pagination, .review-queue-header, .review-detail-section > header,
+  .review-action-panel > header, .review-detail-grid > div, .review-document-list li,
+  .review-history-admin li, .review-dialog > header, .review-dialog form > footer,
+  .payment-form-panel > header, .payment-summary > header, .payment-summary dl > div,
+  .payment-summary-reference, .payment-page-actions, .membership-card-details > dl div,
+  .event-facts dl > div, .event-form section > header, .response-form-actions,
+  .wizard-actions, .state-next-action, .admin-operation-card > header,
+  .admin-attention-card li, .admin-event-list li + li) { border-color: var(--border); }
+
+/* Semantic feedback and workflow states. */
+html[data-theme="dark"] :is(.feedback-success, .save-success, .review-live-notice,
+  .eligibility-result, .payment-state-icon.is-success, .payment-success-icon) { color: #9ce1c1; }
+html[data-theme="dark"] :is(.feedback-error, .save-error, .application-load-error,
+  .application-inline-error, .submission-error, .payment-rejection, .payment-review-note,
+  .tracker-rejection, .review-detail-note.is-danger, .review-action-error) {
+  color: #f1a1a7;
+  border-color: #70414a;
+  background: #3c232b;
+}
+html[data-theme="dark"] :is(.application-guidance, .application-state-notice,
+  .tracker-action-panel.is-attention, .response-request-message) {
+  color: #e7c77d;
+  border-color: #6b5933;
+  background: #382f1e;
+}
+html[data-theme="dark"] :is(.tracker-remarks, .tracker-action-panel, .private-storage-note,
+  .membership-verification-note, .shell-notice) {
+  color: #aed4d3;
+  border-color: #365f64;
+  background: #123038;
+}
+
+/* Loading and empty states inherit the same surface hierarchy. */
+html[data-theme="dark"] :is(.profile-loading, .application-loading, .review-loading,
+  .events-empty, .tracker-empty-state) { color: var(--foreground-muted); }
+html[data-theme="dark"] :is(.skeleton-stack span, .events-loading span, .review-skeleton,
+  .admin-command-skeleton span) {
+  background: linear-gradient(100deg, #0d2330 28%, #193744 46%, #0d2330 64%);
+  background-size: 250% 100%;
+}
+
+/* The credential itself is intentionally excluded; only its surrounding stage adapts. */
+html[data-theme="dark"] .membership-card-stage {
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, #0b202d, #102b38);
+}
+
+@media (max-width: 760px) {
+  html[data-theme="dark"] .mobile-bottom-nav { box-shadow: 0 -8px 28px rgb(0 5 10 / .32); }
+  .profile-save-bar { width: 100%; }
+}
+
+/* Targeted dark-mode cleanup for the remaining fixed-light components. */
+html[data-theme="dark"] :is(.events-filter-bar input, .events-filter-bar select,
+  .event-admin-filters input, .event-admin-filters select) {
+  color: var(--foreground);
+  border-color: var(--border-strong);
+  background: #0a1b27;
+  color-scheme: dark;
+}
+html[data-theme="dark"] :is(.events-filter-bar input, .events-filter-bar select,
+  .event-admin-filters input, .event-admin-filters select):hover {
+  border-color: #5b7d89;
+  background: #0d2230;
+}
+html[data-theme="dark"] :is(.events-filter-bar input, .events-filter-bar select,
+  .event-admin-filters input, .event-admin-filters select):focus {
+  border-color: #4db4b5;
+  background: #0d2230;
+  box-shadow: 0 0 0 3px rgb(77 180 181 / .2);
+}
+html[data-theme="dark"] :is(.events-filter-bar input, .event-admin-filters input)::placeholder {
+  color: #91a7af;
+  opacity: 1;
+}
+
+html[data-theme="dark"] .application-state-card {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+html[data-theme="dark"] .application-state-icon {
+  color: #75d0cd;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+html[data-theme="dark"] .application-state-copy > p { color: #72cfcc; }
+html[data-theme="dark"] .application-state-copy h2 { color: var(--foreground); }
+html[data-theme="dark"] :is(.application-state-copy > span, .application-state-card dt,
+  .state-next-action > span) { color: var(--foreground-muted); }
+html[data-theme="dark"] .application-state-card > dl div {
+  border-color: var(--border);
+  background: var(--surface);
+}
+html[data-theme="dark"] .application-state-card dd { color: var(--foreground); }
+
+html[data-theme="dark"] .profile-overview {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+html[data-theme="dark"] .profile-identity h2,
+html[data-theme="dark"] .profile-completion strong { color: var(--foreground); }
+html[data-theme="dark"] :is(.profile-identity p, .profile-identity div > span,
+  .profile-completion p) { color: var(--foreground-muted); }
+html[data-theme="dark"] .profile-completion > div:first-child { color: #d5e1e4; }
+html[data-theme="dark"] .completion-track {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+html[data-theme="dark"] .event-empty-state {
+  min-height: 118px;
+  border-color: #426572;
+  padding: 19px 21px;
+  background: var(--surface);
+  box-shadow: none;
+}
+html[data-theme="dark"] .event-empty-icon {
+  color: #79d2ce;
+  background: #153743;
+  box-shadow: inset 0 0 0 1px #355a65;
+}
+html[data-theme="dark"] .event-empty-state h3 { color: var(--foreground); }
+html[data-theme="dark"] .event-empty-state p { color: var(--foreground-muted); }
+
+html[data-theme="dark"] .application-preview-icon {
+  color: #79c7dc;
+  background: #153441;
+  box-shadow: inset 0 0 0 1px #345866;
 }
