@@ -1,43 +1,86 @@
 # MyAIS Connect
 
-Phase 1 foundation only. No authentication, business entities, API routes, payments, or migration scripts are implemented. AGENTS.md and docs/ remain the migration contract.
+### Membership Management Platform for MyAIS
 
-## Prerequisites
+MyAIS Connect translates the organisation’s membership processes into a structured digital workflow, from registration and eligibility checks to application review, payment verification, and membership activation.
 
-- Node.js 24 LTS (24.20.0 used for validation).
-- pnpm 10.34.5: install with `npm install --global pnpm@10.34.5`.
-- Expo Go on a compatible device, or Android Studio / an iOS simulator (macOS) for native runtime testing.
-- PostgreSQL is required when database work begins in Phase 2; it is not needed for foundation checks.
+Developed as a final-year project at Universiti Utara Malaysia, the system combines stakeholder requirements analysis, backend engineering, database design, access control, and automated testing.
 
-## Commands
+## Project Highlights
 
-```sh
-pnpm install
-pnpm dev
-pnpm build
-pnpm lint
-pnpm typecheck
-pnpm test
-```
+- **Stakeholder collaboration:** Requirements gathered through discussions with MyAIS EXCO members.
+- **Membership workflow:** Registration, profile completion, eligibility checks, applications, document review, payment verification, and activation.
+- **Backend security:** JWT verification, role-based access, ownership checks, input validation, and protected document access.
+- **Legacy migration:** 83 records imported through an idempotent migration process.
+- **Automated testing:** 109 API tests and 24 web tests.
+- **Workflow validation:** End-to-end verification from applicant registration to ACTIVE membership.
 
-`pnpm dev` starts Next.js at http://localhost:3000, the NestJS listener at http://127.0.0.1:3001, and Expo Metro. The API has no controllers; requests return 404. API `PORT` and `HOST` can be set in the process environment; bind `HOST=0.0.0.0` when deploying in a container.
+## The Problem
 
-Run one app interactively with `pnpm --filter @myais/mobile dev`, `pnpm --filter @myais/web dev`, or `pnpm --filter @myais/api dev`. Expo lists device connection options; use `pnpm --filter @myais/mobile android` or `pnpm --filter @myais/mobile ios` to open an installed emulator.
+Membership administration involves several connected activities: collecting applicant information, checking eligibility, reviewing documents, verifying payments, and updating membership status.
 
-Build produces Next.js output, compiled NestJS JavaScript, shared package declarations/JavaScript, and Expo iOS/Android JavaScript/assets in `apps/mobile/dist`. Expo export is not a signed native application binary. Start built servers with `pnpm --filter @myais/web start` and `pnpm --filter @myais/api start`.
+MyAIS Connect brings these activities into a consistent workflow so that application data, administrative decisions, and membership status can be managed together.
 
-Vitest is configured through the root test command to accept no tests at this foundation stage. No business tests are present yet.
+## Membership Workflow
 
-## Workspace
+1. Register an account.
+2. Complete the membership profile.
+3. Check eligibility and submit an application.
+4. Upload supporting documents to private storage.
+5. Review the application through the administrative workflow.
+6. Submit payment evidence for verification.
+7. Activate membership following the required approvals.
 
-- `apps/web`: Next.js App Router shell.
-- `apps/mobile`: Expo React Native shell.
-- `apps/api`: NestJS bootstrap without endpoints.
-- `packages/database`: PostgreSQL Prisma configuration and an empty schema.
-- `packages/types`: shared TypeScript package, ready for approved domain types.
-- `packages/validation`: shared Zod entry point, without domain schemas.
-- `packages/config`: shared strict TypeScript and ESLint configuration.
+Sensitive operations are checked on the server, including user permissions, record ownership, and permitted workflow transitions.
 
-Prisma validation runs during build without a database connection. When a local connection is needed, copy `packages/database/.env.example` to `packages/database/.env` and provide local credentials. Run `pnpm --filter @myais/database db:validate` to validate the schema. Client generation and migrations are deferred until Phase 2 introduces approved models. Never develop against production or commit private data or secrets.
+## My Contribution
 
-Framework versions are pinned; `pnpm-lock.yaml` records the resolved dependency tree. Mobile React/React Native versions follow the official Expo template. Expo supports pnpm workspaces without custom Metro resolution: [Expo monorepo guidance](https://docs.expo.dev/guides/monorepos/).
+**Achmad Farhan Julyawansyah — Software Development and Requirements Analysis**
+
+- Worked with MyAIS EXCO members to understand membership procedures, administrative needs, and workflow pain points.
+- Translated stakeholder discussions into system requirements, application flows, and feature priorities.
+- Developed backend functionality using NestJS and TypeScript.
+- Designed relational data structures using PostgreSQL and Prisma, with Supabase supporting authentication and private document storage.
+- Implemented validation and authorisation controls for membership operations.
+- Developed the legacy-data import process and verified membership workflow behaviour through automated tests.
+- Used OpenAI Codex and other coding assistants for codebase analysis, implementation planning, debugging, and refactoring, with human review and test validation.
+
+## Technology Stack
+
+| Area | Technologies |
+| --- | --- |
+| Web application | Next.js, React, Tailwind CSS, shadcn/ui |
+| Backend API | NestJS, TypeScript, Zod |
+| Database | PostgreSQL, Prisma |
+| Authentication | Supabase Auth, JWT/JWKS verification |
+| Document storage | Supabase private storage |
+| Workspace | pnpm, Turborepo |
+| Mobile workspace | Expo, React Native, NativeWind |
+
+## Engineering Decisions
+
+### Server-side authorisation
+
+Role and ownership checks protect administrative actions and user-specific records. Access decisions are enforced on the backend.
+
+### Private document access
+
+Supporting documents are stored privately and accessed through authorised application workflows.
+
+### Data consistency
+
+Transactions, locking, and idempotency controls protect relevant membership operations from inconsistent or repeated updates.
+
+### Repeatable migration
+
+The legacy import process is designed to avoid duplicate records when rerun.
+
+## Validation and Project Scope
+
+The documented development milestone includes:
+
+- Migration of 83 legacy records.
+- 109 API tests and 24 web tests.
+- Verification of the applicant-to-ACTIVE-membership workflow.
+
+These results describe development validation. Production deployment and completion of each web or mobile interface should be documented separately as those milestones are verified.
